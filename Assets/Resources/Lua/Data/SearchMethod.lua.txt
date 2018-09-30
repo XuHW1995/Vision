@@ -1,0 +1,50 @@
+local Class = require('Behaviour/Class');
+local LuaBehaviour = require('Behaviour/LuaBehaviour')
+local SearchMethod = Class.Class(LuaBehaviour)
+local CSMySearch = CS.MySearch;
+
+--通过字符串搜索,返回搜索结果table
+--str：搜索关键字
+function SearchMethod.SearchByStr( str )
+  local datalist = CSMySearch.SearchByInputText(str)
+	local datatable = {}
+    for i=0,datalist.Count-1 do
+       table.insert(datatable,datalist[i])
+    end
+    return datatable;
+end
+
+--通过检索获取结果
+--menuname:分页名字，con1：检索条件1，con2：检索条件2
+function SearchMethod.SearchByConditions(menuname,con1,con2 )
+  local datalist = CSMySearch.SearchByConditions(menuname,con1,con2)
+	local datatable = {}
+    for i=0,datalist.Count-1 do
+       table.insert(datatable,datalist[i])
+    end
+    return datatable;
+end
+
+--随机获取某一menuname下的count个数据
+--menuname:分页名字， count:所需数据个数
+function SearchMethod.GetRecommendDataBymenuname(count,menuname )
+  local smdtable = {}
+  local showdatalist = CSMySearch.GetRandomDataByMenuname(count,menuname)
+  for i=0,showdatalist.Count-1 do
+    table.insert(smdtable,showdatalist[i])
+  end
+  return smdtable;
+end
+
+--获取相关视频数据
+--url：视频url地址
+function SearchMethod.GetRelatedDataByUrl(url)
+  local smdtable = {}
+  local showdatalist = CSMySearch.GetRelatedDataByUrl(url)
+  for i=0,showdatalist.Count-1 do
+    table.insert(smdtable,showdatalist[i])
+  end
+  return smdtable;
+end
+
+return SearchMethod;

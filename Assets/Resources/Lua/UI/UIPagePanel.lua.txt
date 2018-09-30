@@ -1,0 +1,121 @@
+local Class = require('Behaviour/Class');
+local UILuaBehaviour = require('Behaviour/UILuaBehaviour');
+local UIPagePanel = Class.Class(UILuaBehaviour);
+local Convert = CS.System.Convert
+local LocalDataHelper = require("Data/LocalDataHelper")
+local Vector2 = CS.UnityEngine.Vector2
+local CurrentPageNum = nil;
+
+--用于外部注册，当toggle的ison改变时触发
+--currentpagenum:当前页码
+function UIPagePanel:SetPagePanelCallBack(callback)
+    self.callback = callback;
+end
+
+-- function UIPagePanel:Start( ... )
+--   	AppCtrl.TimerMgr.Add(30, function ()
+-- 		self:OnChickButton_Next();
+-- 		print("下一页")
+--   	end)
+-- end
+
+--刷新页码界面显示状态
+--allpagecount:总页数
+function UIPagePanel:Show(Amount)
+    --print("UIPagePanelshow,Amount:",Amount)
+	self.pagecount = Amount;	  
+	self:CreatPagecountByAmount(Amount)
+	self:SetSize(Amount)
+end
+
+--根据数据总数生成页数,并且给每个toggle绑定事件
+function UIPagePanel:CreatPagecountByAmount( Amount )
+	local allpagecount=nil;
+	if Amount<=10 then
+        allpagecount= Amount
+    else
+    	allpagecount = 10
+    end
+	local SVCHelper = UILuaBehaviour.GetLuaBehaviour(self.Gos.ToggleGroup);	
+	SVCHelper:Load(allpagecount,function(childNodeObj,index)
+		local ThisToggle = childNodeObj.transform:GetComponent("Toggle");
+		local ThisText = childNodeObj.transform:Find("Background/Label"):GetComponent("Text")
+		childNodeObj.name = index;
+		--设置页码
+	    ThisText.text =index;
+		 --第一页的toggle选中
+		if index == 1 then
+		  ThisToggle.isOn = true; 
+		  CurrentPageNum = 1;	
+		else
+		  ThisToggle.isOn = false; 	          
+		end
+	    --每次添加回调之前清除所有委托，保证每个unityevent只有一个委托函数
+		ThisToggle.onValueChanged:RemoveAllListeners()		
+	    ThisToggle.onValueChanged:AddListener(function ()
+			if ThisToggle.isOn then
+				if CurrentPageNum ~= Convert.ToInt32(ThisText.text) then 
+	               CurrentPageNum = Convert.ToInt32(ThisText.text)
+	               self:ResetToggleGroup()
+	            else
+	           	  return;
+	           	end	                                          
+	        end 
+		end)			    	    
+	end)
+end
+
+--重新设置togglegroup，根据当前页数
+function UIPagePanel:ResetToggleGroup()
+	local firstnum=nil;   --首页页数
+	if self.pagecount<=10 then                               --如果总页数<10,首页都是1
+	   firstnum = 1
+	elseif  self.pagecount>10 and CurrentPageNum <= 6 then   --如果总页数>10，当前页<=6,首页为1
+	   firstnum = 1;
+	elseif  self.pagecount>10 and CurrentPageNum > 6 and CurrentPageNum<= self.pagecount - 4 then   --如果总页>10,当前页>6,CurrentPageNum-5
+	   firstnum = CurrentPageNum -5
+	elseif  self.pagecount>10 and CurrentPageNum > self.pagecount - 4 then
+       firstnum = self.pagecount - 9
+	end
+	
+	local SVCHelper = UILuaBehaviour.GetLuaBehaviour(self.Gos.ToggleGroup);	
+	SVCHelper:ForechChild(function(childNodeObj,index)
+       local ThisText = childNodeObj.transform:Find("Background/Label"):GetComponent("Text")
+       local ThisToggle = childNodeObj.transform:GetComponent("Toggle");
+       ThisText.text = firstnum + (index -1)
+	   if CurrentPageNum ==  Convert.ToInt32(ThisText.text)  then 
+	       ThisToggle.isOn = true
+           --print("刷新第"..CurrentPageNum.."页数据")
+	       self.callback(CurrentPageNum) 
+	   end
+	end)
+end
+
+--根据页码总数设置大小
+function UIPagePanel:SetSize( Amount )
+	local preferredW = nil;
+	if Amount<10 then
+       preferredW = 45+ (Amount-1)*36
+    else
+       preferredW = 369
+    end
+    self.Gos.PageNumber.transform:GetComponent("LayoutElement").preferredWidth = preferredW
+end
+-----------------------------------------------------------------------------------------------------
+--上一页
+function UIPagePanel:OnChickButton_Prev()
+	if CurrentPageNum > 1 then
+		CurrentPageNum = CurrentPageNum-1
+		self:ResetToggleGroup()		
+	end	
+end
+
+--下一页
+function UIPagePanel:OnChickButton_Next()
+	if CurrentPageNum < self.pagecount then
+	   CurrentPageNum = CurrentPageNum+1
+	   self:ResetToggleGroup()	  
+    end      
+end
+
+return UIPagePanel;

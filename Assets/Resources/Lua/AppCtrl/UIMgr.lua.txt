@@ -1,0 +1,449 @@
+local Class = require('Behaviour/Class')
+local Vector2 = CS.UnityEngine.Vector2
+local Vector3 = CS.UnityEngine.Vector3
+local GameObject = CS.UnityEngine.GameObject;
+local UIMgr = Class.Class()
+UIMgr.RootPath = "Prefabs/UI/UIRootCanvas.prefab";
+local UIList = require("AppCtrl/UIList")
+local LuaBehaviour = require("Behaviour/LuaBehaviour")
+
+
+--local canvas, camera, eventSystem, stack, swallow
+UIMgr.UICamera = nil;
+UIMgr.EffectCamera = nil;
+UIMgr.UIEventSystem = nil;
+UIMgr.UIRoot = nil;
+UIMgr.UIStack = {};--{["UIName"] = UIName,["UIInfo"] = UIInfo,["UICanvas"] = UICanvas,["UIlb"] = UIlb}
+UIMgr.UIMgrobj = nil;
+
+--需要外部调用初始化
+function UIMgr.Init()
+    local function InitEnv(uimgrobj)
+        uimgrobj.transform.position = 1000 * Vector3.up;
+        local function createCamera(name, depth, culling)
+            local camera = GameObject(name);
+            local component = camera:AddComponent(typeof(CS.UnityEngine.Camera));
+            component.orthographic = true;
+            component.cullingMask = culling;
+            component.depth = depth;
+            component.clearFlags = CS.UnityEngine.CameraClearFlags.Depth;
+            component.useOcclusionCulling = false;            
+            camera.transform:SetParent(uimgrobj.transform);
+            camera.transform.localPosition = Vector3.zero;
+            return camera;
+        end
+        --UI Camera
+        CS.UnityEngine.GL.Clear(true,true,CS.UnityEngine.Color.black)
+
+        UIMgr.UICamera = createCamera("UICamera", 1, 32);
+        --
+        UIMgr.EffectCamera = createCamera("EffectCamera", 2, 256);
+        --UI event system
+        UIMgr.UIEventSystem = GameObject('UIEventSystem');
+        UIMgr.UIEventSystem:AddComponent(typeof(CS.UnityEngine.EventSystems.EventSystem));
+        UIMgr.UIEventSystem:AddComponent(typeof(CS.UnityEngine.EventSystems.StandaloneInputModule));
+        UIMgr.UIEventSystem.transform:SetParent(uimgrobj.transform);
+        UIMgr.UIEventSystem.transform.localPosition = Vector3.zero;
+        -- UI root
+        UIMgr.UIRoot = GameObject("UIStack");
+        UIMgr.UIRoot.transform:SetParent(uimgrobj.transform);
+        UIMgr.UIRoot.transform.localPosition = Vector3.zero;
+    end
+    --
+    UIMgr.UIStack = {};
+    assert(GameObject.Find("UIMgr") == nil);
+    UIMgr.UIMgrobj =  CS.UnityEngine.GameObject("UIMgr");
+    InitEnv(UIMgr.UIMgrobj);
+    return UIMgr.UIMgrobj;
+end
+
+function UIMgr.Destroy()
+    --stack = nil
+    UIMgr.UIStack = {};
+    GameObject.DestroyImmediate(UIMgr.UIMgrobj)
+end
+
+---------------------------------------------------------------------------------------
+-- 查找指定UIName的UI
+function UIMgr.FindUIByName( UIName )
+    for i,v in ipairs(UIMgr.UIStack) do
+        if v.UIName == UIName then
+            return v.UIlb;
+        end
+    end
+end
+
+--查找UI，找到返回序号，否则返回nil
+function UIMgr.Find( UIName )
+    for i,v in ipairs(UIMgr.UIStack) do
+        if v.UIName == UIName then
+            return i;
+        end
+    end
+end
+
+--删除最顶层UI，通用来用再UI自身的lb中调用来删除自己
+function UIMgr.RemoveTop()
+    local us = UIMgr.getStackUIList();
+    local name = UIMgr.getNameFormUI(us[1]);
+    if name ~= "UINewHomePage" then
+        UIMgr.Remove(name);
+    end
+end
+
+--回退到离顶层UI最近的UIName
+function UIMgr.Back(UIName)
+    local us = UIMgr.getStackUIList();
+    local names = {}
+    for i,v in ipairs(us) do
+        if UIMgr.getNameFormUI(v) == UIName then
+            break;
+        else
+            names[#names + 1] = UIMgr.getNameFormUI(v);
+        end
+    end
+    if #names == #us then
+        assert(false,"Not found UI, name:"..UIName);
+    else
+        for i,v in ipairs(names) do
+            UIMgr.Remove(v);
+        end
+    end
+end
+
+function UIMgr.Remove( UIName )
+    assert(callback == nil, 'illegal arg callback.');
+    UIMgr.DelUIByName(UIName);
+end
+
+function UIMgr.RemoveBylb( lb )
+    UIMgr.DelUIBylb(lb);
+end
+
+function UIMgr.RemoveAll(  )
+    for i,v in ipairs(UIMgr.UIStack) do
+        GameObject.Destroy(v.UICanvas);
+    end
+    UIMgr.UIStack = {}
+end
+
+--暂时用不上 UIMgr.ShowSub
+-- --[[
+--     显示子ui，UIMgr只负责创建和挂载在相应的父节点上，并不管理释放，由ui自行管理。
+--     return：lb
+-- ]]
+-- function UIMgr.ShowSub(plb, subUI,callback ,arg)
+--     assert(callback == nil,"No!");
+--     assert(type(plb) == "table")
+--     assert(type(subUI) == "string")
+
+--     local subuiinfo = nil;
+--     local parentUIName = plb.UIName;
+--     if plb.MainOrSub == "isMainUI" then
+--         local uiinfo,name = UIList.get(parentUIName);
+--         subuiinfo = uiinfo.SubUI[subUI];
+--     else
+--         local uiinfo,name = UIList.getForSub(subUI);
+--         subuiinfo = uiinfo;
+--     end
+
+--     assert(subuiinfo,"ERROR:Not fund sub UI("..subUI..")in UI("..parentUIName.."). Check the sub UI name!");
+--     if subuiinfo.eUIType then
+--         if arg then
+--             arg.parentData = plb.data
+--         end
+--         local lb = UIMgr.StackUIShow(subUI,subuiinfo,"isSubUI",arg);
+--         if lb then
+--             assert(lb.parentUIData == nil);
+--             lb.parentUIData = plb.data;
+--         end
+--         return lb
+--     else
+--         local to = plb.gameObject;
+--         local subuiNode = to.transform:Find("SubUI");
+--         local sn;
+--         if not subuiNode then
+--             sn = GameObject("SubUI");
+--             sn.transform:SetParent(to.transform);
+--             sn.transform.localPosition = Vector3(0,0,0);
+--             sn.transform.localScale = Vector3(1,1,1);
+--         else
+--             sn = subuiNode;
+--         end
+        
+--         local uiobject = AppCtrl.ResMgr.Load(subuiinfo.pathName);
+--         assert(uiobject,"ERROR:AppCtrl.ResMgr.Load:"..subuiinfo.pathName);
+--         local lb,obj= LuaBehaviour.Instantiate(uiobject);
+--         obj.transform:SetParent(sn.transform);
+--         obj.transform.localPosition = Vector3(0,0,0);
+--         obj.transform.localScale = Vector3(1,1,1);
+--         if lb then
+--             assert(lb.UIName == nil);
+--             lb.UIName = subUI;
+--             if lb.ReceiveStartArg then
+--                 if arg then
+--                     arg.parentData = plb.data
+--                 end
+--                 lb:ReceiveStartArg(arg)
+--             end
+--             assert(lb.parentUIData == nil);
+--             lb.parentUIData = plb.data;
+--         end
+--         return lb;
+--     end
+-- end
+
+---------------------------protect function---------------------------------------------------
+
+function UIMgr.getFileName(path)
+    local names = StringSplit(path, "/");
+    local fullname = names[#names];
+    local pos = string.find(fullname, "%.");
+    local name = fullname;
+    if (pos ~= nil) then
+        name = string.sub(fullname, 1, pos - 1);
+    end
+    return name;
+end
+
+--新增UI
+function UIMgr.AddUI(UIName,UIInfo,UICanvas,UIlb)
+    assert(UIName,"UIMgr.AddUI UIName");
+    assert(UIInfo,"UIMgr.AddUI UIInfo");
+    assert(UICanvas,"UIMgr.AddUI UICanvas");
+    assert(UIlb,"UIMgr.AddUI UIlb");
+    
+    --单例判断
+    if UIInfo.eUIType.single then
+        if UIMgr.GetFirstSameTypeFormUIStack(UIInfo.eUIType) then
+            print("siglton UI",UIName);
+            return ;
+        end
+    end
+
+    --UI失去焦点
+    local us = UIMgr.getStackUIList();
+    local before_ui_lb = nil;
+    if us[1] then
+        before_ui_lb = UIMgr.getlbFormUI(us[1]);
+    end
+    -- UIMgr.setFirstUIFocus(false);
+
+    --上层UI是否要隐藏
+    if not UIInfo.eUIType.lastUIActive then
+        UIMgr.setFirstUIActive(false);
+    end
+
+    table.insert(UIMgr.UIStack,1,{["UIName"] = UIName,["UIInfo"] = UIInfo,["UICanvas"] = UICanvas,["UIlb"] = UIlb});
+    local v = UIMgr.UIStack[1];
+    if v.UIInfo.eUIType.stack then
+        v.UICanvas:GetComponent("Canvas").sortingOrder = UIMgr.getLastUiOrder() + 1;
+    else
+        v.UICanvas:GetComponent("Canvas").sortingOrder = v.UIInfo.eUIType.order;
+    end
+    v.UICanvas.transform:Find("Image_Mask").gameObject:SetActive(v.UIInfo.eUIType.mask)
+    v.UICanvas.transform:Find("Image_Shield").gameObject:SetActive(v.UIInfo.eUIType.shield)
+
+    -- 上一个界面失去焦点
+    if before_ui_lb ~= nil then
+        before_ui_lb:focus(false);
+    end
+end
+
+function UIMgr.getLastUiOrder( ... )
+    local us = UIMgr.getStackUIList();
+    if us[1] then
+        return us[1].UICanvas:GetComponent("Canvas").sortingOrder;
+    end
+    return 0;
+end
+
+--删除UI
+function UIMgr.DelUI( index )
+    -- body
+    local ui = UIMgr.UIStack[index]
+    local luia = ui.UIInfo.eUIType.lastUIActive;
+    local isstack = ui.UIInfo.eUIType.stack;
+    ui.UICanvas:SetActive(false);
+    GameObject.Destroy(ui.UICanvas);
+    table.remove(UIMgr.UIStack,index);
+
+    --process
+    if isstack then
+        if not luia then
+            UIMgr.setFirstUIActive(true);
+        end
+        UIMgr.setFirstUIFocus(true);
+    end
+end
+
+function UIMgr.DelUIByName(UIName)
+    local function FindUI( uname )
+        for i,v in ipairs(UIMgr.UIStack) do
+            if v.UIName == uname then
+                return i
+            end
+        end
+    end
+
+    local index = FindUI(UIName)
+    if not index then
+        TRACKBACK__Warning("UIMgr.DelUIByName warning(单例UI必有此警告):"..UIName);
+        return
+    end
+    UIMgr.DelUI(index);
+end
+
+function UIMgr.DelUIBylb( lb )
+    local function FindUI( l )
+        for i,v in ipairs(UIMgr.UIStack) do
+            if v.UIlb == l then
+                return i
+            end
+        end
+    end
+
+    local index = FindUI(lb)
+     if not index then
+        TRACKBACK__Warning("UIMgr.DelUIByName warning(单例UI必有此警告):"..v.UIName);
+        return
+    end
+    UIMgr.DelUI(index);
+end
+
+function UIMgr.getStackUIList( )
+    local ret = {}
+    for i,v in ipairs(UIMgr.UIStack) do
+        if UIMgr.getInfoFormUI(v).eUIType.stack then
+            ret[#ret + 1] = v;
+        end
+    end
+    return ret;
+end
+
+function UIMgr.getInfoFormUI( UI )
+    return UI.UIInfo;
+end
+
+function UIMgr.getNameFormUI( UI )
+    return UI.UIName;
+end
+
+function UIMgr.getlbFormUI( UI )
+    return UI.UIlb;
+end
+
+function UIMgr.getCanvasFormUI( UI )
+    return UI.UICanvas;
+end
+
+
+function UIMgr.setFirstUIFocus(torf)
+    local us = UIMgr.getStackUIList();
+    if us[1] then
+        local lb = UIMgr.getlbFormUI(us[1]);
+        lb:focus(torf);
+        --lb:Start();
+    end
+end
+
+function UIMgr.setFirstUIActive( torf )
+    local us = UIMgr.getStackUIList();
+    if us[1] then
+        local c = UIMgr.getCanvasFormUI(us[1]);
+        c:SetActive(torf);
+    end
+end
+
+function UIMgr.getFirstUIName()
+    local us = UIMgr.getStackUIList();
+    local name = "";
+    if us[1] ~= nil then
+        name = UIMgr.getNameFormUI(us[1]);
+    end
+    return name;
+end
+
+function UIMgr.getFirstUIlb()
+    local us = UIMgr.getStackUIList();
+    local lb = nil;
+    if us[1] ~= nil then
+        lb = UIMgr.getlbFormUI(us[1]);
+    end
+    return lb;
+end
+
+function UIMgr.GetFirstSameTypeFormUIStack(uitype)
+    for i,v in ipairs(UIMgr.UIStack) do
+        if uitype == UIMgr.getInfoFormUI(v).eUIType then
+            return i;
+        end
+    end
+    return nil;
+end
+
+function UIMgr.VisibleHomeAndDock( state )
+    local home_lb = UIMgr.FindUIByName("UINewHomePage");
+    if home_lb ~= nil then
+        home_lb.gameObject:SetActive(state);
+    end
+    --
+    local home_dock_lb = UIMgr.FindUIByName("UIHomeDock");
+    if home_dock_lb ~= nil then
+        home_dock_lb.gameObject:SetActive(state);
+    end
+end
+
+-----------------------------------------------------------------------------------------------------
+--[[
+    UI: UI名称，参考UIList
+    Arg：传给UI的参数：table 目标ui的lb需要实现ReceiveStartArg(arg)
+    example: UI.Show("Login", {这个table里列出要传递的参数})
+]]
+function UIMgr.Show(UIName, arg)
+    if UIMgr.getFirstUIName() ~= UIName then
+        return UIMgr.StackUIShow(UIName, "isMainUI", arg);
+    else
+        return nil;
+    end
+end
+
+function UIMgr.StackUIShow(UIName, MainOrSub, arg)
+    -- get ui data
+    local uiinfo, _ = UIList.get(UIName);
+
+    -- create canvas
+    local object = AppCtrl.ResMgr.Load(UIMgr.RootPath)
+    assert(object,"ERROR:Not fund UIMgr.RootPath("..UIMgr.RootPath.."). Check the Path!")
+    local canvas = GameObject.Instantiate(object);
+    canvas.name = UIName;
+    canvas.transform:SetParent(UIMgr.UIRoot.transform,false)
+    -- camera
+    local camera = UIMgr.UICamera:GetComponent("Camera");
+    local component = canvas:GetComponent("Canvas");
+    component.worldCamera = camera;
+    component.sortingOrder = UIMgr.getLastUiOrder() + 1;
+
+    local uiobject = AppCtrl.ResMgr.Load(uiinfo.path)
+    assert(uiobject,"UIMgr.StackUIShow:UIList pathName error!" .. uiinfo.path);
+    local lb = LuaBehaviour.Instantiate(uiobject)
+    assert(lb,"UIMgr.StackUIShow:lb no found!active? " .. uiinfo.path);
+    if lb.ReceiveStartArg then
+        lb:ReceiveStartArg(arg)
+    end
+    lb.gameObject.name = UIName;
+    lb.transform:SetParent(canvas.transform, false);
+    lb.transform:SetSiblingIndex(2);
+
+    --add to stack table
+    UIMgr.AddUI(UIName, uiinfo, canvas, lb);
+    assert(lb.UIName == nil);
+    lb.UIName = UIName;
+    assert(lb.MainOrSub == nil);
+    lb.MainOrSub = MainOrSub;
+
+    return lb;
+end
+
+
+return UIMgr;

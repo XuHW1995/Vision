@@ -1,0 +1,37 @@
+local Class = require('Behaviour/Class');
+local UILuaBehaviour = require('Behaviour/UILuaBehaviour');
+local OptionToggleItem = Class.Class(UILuaBehaviour);
+
+
+function OptionToggleItem:ShowOption(con,index,iscallsecound,panelindex)
+   self.con = con
+   self.panelindex = panelindex
+   self.iscallsecound = iscallsecound
+   self.index = index 
+   --
+   self.middlelb = UILuaBehaviour.GetLuaBehaviour(self.Gos.HomePageMiddle);
+   --
+   self.Gos.Con_Text:GetComponent("Text").text = self.con  
+   if index == 1 then
+      self.gameObject:GetComponent("Toggle").isOn = true;
+   else
+      self.gameObject:GetComponent("Toggle").isOn = false;
+   end
+end
+
+function OptionToggleItem:OnClickSearch()
+	if self.gameObject:GetComponent("Toggle").isOn then  
+       --在此处根据限制条件刷新middle，调用middle里面的方法
+       if self.iscallsecound then 
+          self.middlelb:OpenAndShowSecondSearchPanel(self.con)
+       end
+       if self.panelindex ==1 then
+       	  self.middlelb:RefreshByGetCon1(self.con)
+       end
+       if self.panelindex == 2 then
+       	  self.middlelb:RefreshByGetCon2(self.con)
+       end
+	end
+end
+
+return OptionToggleItem;

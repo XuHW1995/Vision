@@ -1,0 +1,35 @@
+local AppConfig = {}
+function AppConfig.Init()
+    -- 引导开关
+    AppConfig.guideSwitch = true;
+    --log开关
+    AppConfig.log = true;
+    --测试模式
+	AppConfig.debug = true;
+    --appid
+	AppConfig.appId = "Rimworld"
+    --渠道
+	AppConfig.channel = "normal";
+    --版本管理根目录地址
+	AppConfig.versionMgrRootUrl = "http://103.242.169.147:10063/rw/";
+    --本地版本文件地址
+    AppConfig.resLocalVersionPath = CS.UnityEngine.Application.persistentDataPath .. "/ResVersion.txt";
+    -- --下载资源本地保存目录
+    AppConfig.localResPtah = CS.UnityEngine.Application.persistentDataPath;
+
+    --服务器列表下载路径
+    if AppConfig.debug then
+    	AppConfig.UrlServerList = "http://58.49.104.162:9080/<lang>/<appId>/v2/config?v=<v>&pl=<pl>&ch=<ch>"
+    else
+    	AppConfig.UrlServerList = "http://dfjol.3gpk.net/<lang>/<appId>/v2/config?v=<v>&pl=<pl>&ch=<ch>"
+    end
+
+
+end
+
+function AppConfig.Destroy()
+
+end
+
+
+return AppConfig;

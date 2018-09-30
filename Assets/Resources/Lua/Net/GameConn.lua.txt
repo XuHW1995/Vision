@@ -1,0 +1,5 @@
+local Conn = require('Module.Conn')
+
+local GameConn = Conn.Create()
+
+return GameConn

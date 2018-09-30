@@ -1,0 +1,111 @@
+local Class = require('Behaviour/Class');
+local UILuaBehaviour = require('Behaviour/UILuaBehaviour');
+local UIHomePage_menu = Class.Class(UILuaBehaviour);
+
+local DataCache = require("Data/LocalDataHelper")
+local NotifyMgr = require("AppCtrl/NotifyMgr");
+
+function UIHomePage_menu:Start()
+    self:AddListener();
+end
+
+function UIHomePage_menu:AddListener()
+    NotifyMgr.RegisterListening(self, NotifyMgr.EventList.GetMoreMovie, function (obj, menuName)
+        self.callback(menuName);
+        self:SetSelect(menuName);
+    end)
+end
+
+function UIHomePage_menu:RemoveLisetener()
+    NotifyMgr.RmoveListen(self, NotifyMgr.EventList.GetMoreMovie);
+end
+
+function UIHomePage_menu:OnDestroy()
+    self:RemoveLisetener();
+end
+
+function  UIHomePage_menu:Show()
+    local menuList = DataCache.GetMenuItemList();
+
+    local SVCHelper = UILuaBehaviour.GetLuaBehaviour(self.Gos.menuList);
+    SVCHelper:Load(#menuList,function(childNodeObj,index)
+        childNodeObj.transform:Find("Button"):GetComponent(typeof(CS.UnityEngine.UI.Button)).onClick:RemoveAllListeners()
+        --为选中按钮添加回调
+        childNodeObj.transform:Find("Button"):GetComponent(typeof(CS.UnityEngine.UI.Button)).onClick:AddListener(function()
+            --print(menuList[index]);
+            --设置选中
+            self:SetSelect(menuList[index]);
+            --将选中的信息回调出去
+            if self.callback then
+                self.callback(menuList[index]);
+            end
+        end);
+        
+        --设置按钮文本
+        UILuaBehaviour:SetText(childNodeObj.transform:Find("Button/Text").gameObject,menuList[index]);
+    end);
+
+end
+
+--设置菜单选中
+--参数：
+--      indexOrName：要选中的序号或者是名字
+function UIHomePage_menu:SetSelect(menuName)
+    assert(type(menuName) == "string");
+    local SVCHelper = UILuaBehaviour.GetLuaBehaviour(self.Gos.menuList);
+    local bFound = false;
+    --遍历所有节点
+    SVCHelper:ForechChild(function(childNodeObj,index)
+        local text = UILuaBehaviour:GetText(childNodeObj.transform:Find("Button/Text").gameObject);
+        --print(childNodeObj.name,menuName,text)
+        if text == menuName then
+            bFound = true;
+            self:SetTitleSelectImage(childNodeObj,true);
+        else
+            self:SetTitleSelectImage(childNodeObj,false);
+        end
+    end);
+    assert(bFound,"arg:menuName not found. menuName:"..menuName);
+end
+
+--设置菜单项排序
+--参数：
+--      menuName    ：要选中的序号或者是名字
+--      orderIndex  : 序号
+function UIHomePage_menu:SetSiblingIndex(menuName,orderIndex)
+    assert(type(menuName) == "string" and orderIndex >= 0);
+    local SVCHelper = UILuaBehaviour.GetLuaBehaviour(self.Gos.menuList);
+    local bFound = false;
+    --遍历所有节点
+    SVCHelper:ForechChild(function(childNodeObj,index)
+        local text = UILuaBehaviour:GetText(childNodeObj.transform:Find("Button/Text").gameObject);
+        --print(childNodeObj.name,menuName,text)
+        if text == menuName then
+            bFound = true;
+            childNodeObj.transform:SetSiblingIndex(orderIndex);
+        end
+    end);
+    assert(bFound,"arg:menuName not found. menuName:"..menuName);
+end
+
+--设置菜单按钮的回调
+--参数：
+--      callback: function(menuName) end 
+--                data: 菜单名字
+function UIHomePage_menu:SetClickCallBack(callback)
+    self.callback = callback;
+end
+
+--设置选中按钮的图片
+--参数   selectChildNode 子节点
+--      bSelect 是否选中
+function UIHomePage_menu:SetTitleSelectImage(childNode,bSelect)
+    local image = childNode.transform:Find("Button/Image"):GetComponent(typeof(CS.UnityEngine.UI.Image));
+    if bSelect then
+        image.color = CS.UnityEngine.Color(image.color.r,image.color.g,image.color.b,1)
+    else
+        image.color = CS.UnityEngine.Color(image.color.r,image.color.g,image.color.b,0)
+    end
+end
+
+return UIHomePage_menu

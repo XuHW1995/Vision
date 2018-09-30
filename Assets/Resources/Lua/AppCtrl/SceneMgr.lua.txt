@@ -1,0 +1,170 @@
+local SceneMgr = {};
+local SceneList = require("AppCtrl/SceneList")
+SceneMgr.obj = nil;
+
+SceneMgr.LoadInfo = nil;
+
+function SceneMgr.Init()
+	assert(CS.UnityEngine.GameObject.Find("SceneMgr") == nil);
+	SceneMgr.obj = CS.UnityEngine.GameObject("SceneMgr");
+	return SceneMgr.obj;
+end
+
+function SceneMgr.runScene(s,doneCallback)
+	local scene = SceneList.get(s);
+	--清除掉之前的所有ui
+	if scene.mode == CS.UnityEngine.SceneManagement.LoadSceneMode.Single then
+		AppCtrl.UIMgr.RemoveAll();
+	end
+
+	SceneMgr.LoadScene(scene.pathName,scene.mode)
+	-- check 检查scene根节点下是否是有且只有一个与scene Name 相同的GameObject
+	-- SceneMgr.checkProcess(scene.pathName);
+	--检查完成
+	if doneCallback then
+		SceneMgr.checkDone(scene.pathName,doneCallback);
+	end
+end
+
+function SceneMgr.runSceneAsync(s, doneCallback)
+	local scene = SceneList.get(s);
+	
+	if scene.mode == CS.UnityEngine.SceneManagement.LoadSceneMode.Single then
+		AppCtrl.UIMgr.RemoveAll();
+	end
+
+	SceneMgr.LoadSceneAsync(scene.pathName, scene.mode, doneCallback);
+end
+
+function SceneMgr.removeScene( s )
+	-- body
+	local scene = SceneList.get(s);
+	local ret = SceneMgr.convertSceneName(scene.pathName);
+	CS.UnityEngine.SceneManagement.SceneManager.UnloadScene(ret);
+end
+
+function SceneMgr.GetSceneByName( s )
+	local scene = SceneList.get(s);
+	local ret = SceneMgr.convertSceneName(scene.pathName);
+	print(" ----- GetSceneByName = ", ret);
+	return CS.UnityEngine.SceneManagement.SceneManager.GetSceneByName(ret);
+end
+
+function SceneMgr.Merge(formSceneName,toSceneName )
+	local formScene = SceneMgr.GetSceneByName(formSceneName)
+	local toScene = SceneMgr.GetSceneByName(toSceneName)
+	CS.UnityEngine.SceneManagement.SceneManager.MergeScenes(formScene,toScene);
+end
+
+--
+local cache = {}
+
+-- function SceneMgr.SetActive( sceneName ,tureoffalse)
+-- 	if not cache[sceneName] then
+-- 		cache[sceneName] = {}
+-- 	end
+-- 	local scene = SceneList.get(sceneName);
+-- 	assert(scene);
+-- 	local ret = SceneMgr.convertSceneName(scene.pathName)
+-- 	local scene = CS.UnityEngine.SceneManagement.SceneManager.GetSceneByName(ret);
+-- 	assert(scene.isLoaded);
+-- 	local allobj = scene:GetRootGameObjects()
+-- 	local l = allobj.Length;
+-- 	for i = 1,allobj.Length do
+-- 		local  v = allobj[i];
+-- 		if cache[sceneName][v.name] == nil then
+-- 			cache[sceneName][v.name] = v.activeSelf;
+-- 		end
+-- 		print(v.name);
+-- 		if tof then
+-- 			v:SetActive(cache[sceneName][v.name])
+-- 		else
+-- 			v:SetActive(tof)
+-- 		end
+-- 	end
+-- end
+
+-------------------------------------私有方法------------------------------------------------
+--scene加载成功时回调,回调参数为根节点下的GameObject
+function SceneMgr.checkDone(sceneName,doneCallback)
+	local ret = SceneMgr.convertSceneName(sceneName)
+	local scene = CS.UnityEngine.SceneManagement.SceneManager.GetSceneByName(ret);
+	AppCtrl.TimerMgr.Add(0.1,function ( dt,id )
+		if scene.isLoaded then
+			AppCtrl.TimerMgr.Delete(id);
+			local sceneRootGameObjects = scene:GetRootGameObjects();
+			if doneCallback ~= nil then
+				doneCallback(sceneRootGameObjects);
+			end
+		end
+	end,true);
+end
+
+-- function SceneMgr.checkProcess( sceneName )
+-- 	local ret = SceneMgr.convertSceneName(sceneName)
+-- 	local scene = CS.UnityEngine.SceneManagement.SceneManager.GetSceneByName(ret);
+	
+-- 	-- AppCtrl.TimerMgr.Add(0.1,function ( dt,id )
+-- 	-- 	if scene.isLoaded then
+-- 	-- 		AppCtrl.TimerMgr.Delete(id);
+-- 	-- 		local snodeName = "SceneMgr SceneNode "..ret;
+-- 	-- 		local sceneObj = CS.UnityEngine.GameObject(snodeName);
+-- 	-- 		print("SceneMgr.check:",sceneName,ret,sceneObj,scene,scene.isLoaded)
+-- 	-- 		CS.UnityEngine.SceneManagement.SceneManager.MoveGameObjectToScene(sceneObj,scene)
+
+-- 	-- 		local sceneRootGameObjects = scene:GetRootGameObjects();
+-- 	-- 		print("SceneMgr.checkProcess",sceneRootGameObjects.Length);
+-- 	-- 		for i=1,sceneRootGameObjects.Length do
+-- 	-- 			print("Scene move  ",sceneRootGameObjects[i].name)
+-- 	-- 			--print(sceneRootGameObjects[i].transform.parent )
+-- 	-- 			--print(sceneObj.transform);
+-- 	-- 			if snodeName ~= sceneRootGameObjects[i].name then
+-- 	-- 				sceneRootGameObjects[i].transform.parent = sceneObj.transform;
+-- 	-- 			end
+-- 	-- 		end
+-- 	-- 		local sceneRootGameObjects = scene:GetRootGameObjects();
+-- 	-- 		print("After process SceneMgr.checkProcess",sceneRootGameObjects.Length,sceneRootGameObjects[1].name);
+-- 	-- 	end
+-- 	-- end,true);
+-- end
+
+
+function SceneMgr.LoadScene(scene,mode)
+	if not CS.UnityEngine.Application.isEditor then
+		AppCtrl.ResMgr.Load(scene);      
+	end
+	mode = mode or CS.UnityEngine.SceneManagement.LoadSceneMode.Single
+	local ret = SceneMgr.convertSceneName(scene)
+    CS.UnityEngine.SceneManagement.SceneManager.LoadScene(ret, mode) 
+end
+
+function SceneMgr.LoadSceneAsync(scene, mode, doneCallback)
+	local function AsyncFunc()
+		mode = mode or CS.UnityEngine.SceneManagement.LoadSceneMode.Single;
+		local ret  = SceneMgr.convertSceneName(scene);
+		SceneMgr.LoadInfo = CS.UnityEngine.SceneManagement.SceneManager.LoadSceneAsync(ret, mode);
+		SceneMgr.LoadInfo.allowSceneActivation = false;
+		--AppCtrl.UIMgr.Show("UILoading", {scene, doneCallback});
+		if doneCallback ~= nil then
+			doneCallback();
+		end
+	end
+
+	if not CS.UnityEngine.Application.isEditor then
+		AppCtrl.ResMgr.AsyncLoad(scene, AsyncFunc);
+	else
+		AsyncFunc();
+	end
+end
+
+function SceneMgr.convertSceneName( sceneName )
+	local fscene = string.gsub(sceneName,"\\","/")
+	local ret1 = StringSplit(sceneName,"/")
+	local ret = StringSplit(ret1[#ret1],"%.")[1]
+	return ret;
+end
+
+
+
+
+return SceneMgr;

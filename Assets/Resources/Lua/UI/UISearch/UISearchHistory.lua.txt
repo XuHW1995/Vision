@@ -1,0 +1,37 @@
+local Class = require('Behaviour/Class');
+local UILuaBehaviour = require('Behaviour/UILuaBehaviour');
+local UISearchHistory = Class.Class(UILuaBehaviour);
+local PlayerPrefs = CS.UnityEngine.PlayerPrefs;
+local SearchHistoryData = require('Data/SearchHistoryData');
+
+function UISearchHistory:Start()
+    self:Show()
+end
+
+function UISearchHistory:Show()	
+    local historystringarray = SearchHistoryData.GetHistoryData();
+    if historystringarray==nil then
+        --print("无历史搜索数据")
+        self.Gos.ScrollView:SetActive(false)
+        self.Gos.NoHistory:SetActive(true)
+    else
+        self.Gos.ScrollView:SetActive(true)
+        self.Gos.NoHistory:SetActive(false)
+    	--print("历史搜索数据个数:"..#historystringarray)
+        local SVCHelper = UILuaBehaviour.GetLuaBehaviour(self.Gos.HistoryContent);
+        SVCHelper:Load(#historystringarray,function(childNodeObj,index)        
+          childNodeObj.name = index;
+          childNodeObj.transform:Find('Image/Button/Text'):GetComponent('Text').text = historystringarray[index];
+        end)      
+	end
+end
+
+function UISearchHistory:OnClearHistoryPage()
+	AppCtrl.UIMgr.Show("UIClearHistory")
+end
+
+function UISearchHistory:Back()
+	AppCtrl.UIMgr.RemoveTop()
+end
+
+return UISearchHistory;

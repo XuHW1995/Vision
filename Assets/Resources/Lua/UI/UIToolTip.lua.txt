@@ -1,0 +1,9 @@
+local Class = require('Behaviour/Class');
+local UILuaBehaviour = require('Behaviour/UILuaBehaviour');
+local UIToolTip = Class.Class(UILuaBehaviour);
+
+function UIToolTip:Yes()
+	AppCtrl.UIMgr.RemoveTop();
+end
+
+return UIToolTip;

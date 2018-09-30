@@ -1,0 +1,54 @@
+local Class = require('Behaviour/Class');
+local UILuaBehaviour = require('Behaviour/UILuaBehaviour');
+local UIHomePage = Class.Class(UILuaBehaviour);
+
+local NotifyMgr = require("AppCtrl/NotifyMgr");
+
+function  UIHomePage:Start()
+    self:AddListener();
+    self.menuLB = UILuaBehaviour.GetLuaBehaviour(self.Gos.menu);
+    self.topLB = UILuaBehaviour.GetLuaBehaviour(self.Gos.top);
+    self.middleLB = UILuaBehaviour.GetLuaBehaviour(self.Gos.middle); 
+    --
+    assert(self.menuLB and self.topLB and self.middleLB)
+    --设置菜单按钮回调
+    self.menuLB:SetClickCallBack(function(menuName)
+        --刷新页面内容
+        self:ShowContent(menuName);
+    end);
+
+    --显示菜单
+    self.menuLB:Show();
+    --选中第一个菜单
+    self.menuLB:SetSelect("推荐");
+    self:ShowContent("推荐");  
+end
+
+function UIHomePage:AddListener()
+    NotifyMgr.RegisterListening(self, NotifyMgr.EventList.PlayMovie, function ()
+        self.gameObject:SetActive(false);
+    end)
+
+    NotifyMgr.RegisterListening(self, NotifyMgr.EventList.EndMovie, function ()
+        self.gameObject:SetActive(true);
+    end)
+end
+
+function UIHomePage:RemoveLisetener()
+    NotifyMgr.RmoveListen(self, NotifyMgr.EventList.PlayMovie);
+    NotifyMgr.RmoveListen(self, NotifyMgr.EventList.EndMovie);
+end
+
+--刷新页面内容
+function UIHomePage:ShowContent(menuName)
+    --top
+    self.topLB:Show(menuName);
+    --middle
+    self.middleLB:Show(menuName);
+end
+
+function UIHomePage:OnDestroy()
+    self:RemoveLisetener();
+end
+
+return UIHomePage

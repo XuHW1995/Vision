@@ -1,0 +1,49 @@
+local Class = require('Behaviour/Class');
+local UILuaBehaviour = require('Behaviour/UILuaBehaviour');
+local UIHomePage_optionitem = Class.Class(UILuaBehaviour);
+local LocalDataHelper = require("Data/LocalDataHelper");
+
+function UIHomePage_optionitem:Show(menuname,panelindex)
+	self.middlelb = UILuaBehaviour.GetLuaBehaviour(self.Gos.HomePageMiddle);
+	if panelindex == 1 then	--一级
+        if menuname =="小初高" then
+        	self:RefreshFirstPanel("学科",menuname,true)        	
+        else
+            self:RefreshFirstPanel("分类",menuname,false) 
+        end
+    else--二级         
+        self:RefreshSecoundPanel("年级",menuname)
+	end
+end
+
+--一级检索栏刷新逻辑
+function UIHomePage_optionitem:RefreshFirstPanel(panelheadname,menuname,iscallsecound)
+	self.Gos.Title.transform:GetComponent("Text").text = panelheadname
+	local firstcolumdata = LocalDataHelper.GetFirstColumn(menuname)
+    local SVCHelper = UILuaBehaviour.GetLuaBehaviour(self.Gos.ToggleGroup);
+    SVCHelper:Load(#firstcolumdata+1,function(childNodeObj,index) 
+    	local optiontoggleitemlb = UILuaBehaviour.GetLuaBehaviour(childNodeObj);
+        if index ==1 then       
+           optiontoggleitemlb:ShowOption("全部",index,iscallsecound,1)
+        else
+           optiontoggleitemlb:ShowOption(firstcolumdata[index-1],index,iscallsecound,1)
+        end
+    end)
+end
+
+--二级检索栏刷新逻辑
+function UIHomePage_optionitem:RefreshSecoundPanel(panelheadname,menuname)
+	self.Gos.Title.transform:GetComponent("Text").text = panelheadname
+	local secoundcolumdata = LocalDataHelper.GetSecoundColum("小初高",menuname)
+    local SVCHelper = UILuaBehaviour.GetLuaBehaviour(self.Gos.ToggleGroup);
+    SVCHelper:Load(#secoundcolumdata+1,function(childNodeObj,index)  
+      local optiontoggleitemlb = UILuaBehaviour.GetLuaBehaviour(childNodeObj);
+        if index ==1 then       
+           optiontoggleitemlb:ShowOption("全部",index,false,2)
+        else
+           optiontoggleitemlb:ShowOption(secoundcolumdata[index-1],index,false,2)
+        end
+    end)    	  
+end
+
+return UIHomePage_optionitem;

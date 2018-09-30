@@ -1,0 +1,26 @@
+local CoroutineMgr = {}
+CoroutineMgr.cs_coroutine_runner = nil;
+
+function CoroutineMgr.Init()
+	assert(CS.UnityEngine.GameObject.Find("CoroutineMgr") == nil);
+	local gameobject = CS.UnityEngine.GameObject('CoroutineMgr')
+	CoroutineMgr.cs_coroutine_runner = gameobject:AddComponent(typeof(CS.Coroutine_Runner))
+	return gameobject;
+end
+
+function CoroutineMgr.get_yield_return( ... )
+	local a = CS.UnityEngine.Resources.Load("xlua/util.lua",typeof(CS.UnityEngine.TextAsset));
+	assert(a,"get_yield_return error");
+	a = a.text;
+	local util = load(a)();
+	local function async_yield_return(to_yield, cb)
+		CoroutineMgr.cs_coroutine_runner:YieldAndCallback(to_yield, cb)
+	end
+
+	return util.async_to_sync(async_yield_return)
+end
+
+function CoroutineMgr.Destroy()
+end
+
+return CoroutineMgr

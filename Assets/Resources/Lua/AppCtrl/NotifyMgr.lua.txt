@@ -1,0 +1,62 @@
+
+local NotifyMgr = {}
+
+local ListenList = {}
+
+-- EventList 为全局表
+NotifyMgr.EventList = 
+{
+	PlayMovie    =  1,
+	EndMovie     =  2,
+	GetMoreMovie =  3,
+};
+
+function NotifyMgr.Init()
+
+end
+
+function NotifyMgr.Destroy()
+	ListenList = {}
+end
+------------------------------------------------public--------------------------------
+
+function NotifyMgr.RegisterListening( obj,eventName,callback )
+	if ListenList[eventName] == nil then
+		ListenList[eventName] = {};
+	end
+	ListenList[eventName][obj] = callback;
+end
+
+function NotifyMgr.RmoveListen( obj,eventName)
+	if ListenList[eventName] ~= nil and ListenList[eventName][obj] ~= nil then
+		ListenList[eventName][obj] = nil;
+	end
+end
+
+function NotifyMgr.RmoveAllListen(eventName)
+	ListenList[eventName] = {};
+end
+
+function NotifyMgr.RmoveListenByObj(obj)
+	for i,v in pairs(ListenList) do
+		for k,j in pairs(v) do
+			if k == obj then
+				ListenList[i][k] = nil;
+			end
+		end
+	end
+end
+
+function NotifyMgr.RmoveAll()
+	ListenList = {};
+end
+
+function NotifyMgr.SendEvent( eventName,msg )
+	if ListenList[eventName] ~= nil then
+		for obj,func in pairs(ListenList[eventName]) do
+			func(obj,msg);
+		end
+	end
+end
+
+return NotifyMgr;

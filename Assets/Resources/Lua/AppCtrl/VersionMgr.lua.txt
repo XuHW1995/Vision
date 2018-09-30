@@ -1,0 +1,25 @@
+local VersionMgr = {}
+
+
+function VersionMgr.Init()
+    assert(CS.UnityEngine.GameObject.Find("VersionMgr") == nil);
+	local gameobject = CS.UnityEngine.GameObject('VersionMgr')
+    local vm = gameobject:AddComponent(typeof(CS.AppCtrl.VersionMgr))
+    
+    setmetatable(VersionMgr, {
+        __index = function(t,key)
+            --print(t,key)
+            return vm[key]
+        end
+    })
+    
+    --print(VersionMgr.appLocalVersion,VersionMgr.resLocalVersion);
+	return gameobject;
+end
+
+
+function VersionMgr.Destroy(t)
+
+end
+
+return VersionMgr;

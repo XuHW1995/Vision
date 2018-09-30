@@ -1,0 +1,333 @@
+local Class = require('Behaviour/Class');
+local UILuaBehaviour = require('Behaviour/UILuaBehaviour');
+local UIPlayPage = Class.Class(UILuaBehaviour);
+local SearchHistoryData = require('Data/SearchHistoryData');
+local LocalDataHelper = require("Data/LocalDataHelper");
+local Vector2 = CS.UnityEngine.Vector2;
+local Screen  = CS.UnityEngine.Screen
+
+local NotifyMgr = require("AppCtrl/NotifyMgr");
+
+local isplay = false;
+--是否启用url模式
+local isUrlModel = true;
+--计时
+local timecount = 0;
+--当前时长
+local timecurrent = 0;
+--是否拿到总时长
+local ishavetotaltime = false;
+--是否播放完毕
+local isplayfinish = false;
+
+--------------------------------------数据接收保存------------------------------------------------------
+--movieinfo = {["name"]={},["url"]={},["lasttime"] = {}}
+--只有从主页直接点击播放按钮才会传递lasttime值，其他情况下不传递
+function UIPlayPage:ReceiveStartArg(arg)
+	NotifyMgr.SendEvent(NotifyMgr.EventList.PlayMovie);
+
+	self.movieinfo = arg;	
+	--保存历史播放数据
+	SearchHistoryData.SetHistoryPlayInfo( self.movieinfo.name,self.movieinfo.url);	
+end
+
+--退出的时候保存time到缓存
+function UIPlayPage:SaveTime( time )
+	SearchHistoryData.SetHistoryPlayTime(time)
+end
+----------------------------------------------------------------------------------------------------------
+--初始化值
+function UIPlayPage:Init()		
+	self.image = self.Gos.MoviePlayWindows.transform:GetComponent("RawImage");
+	self.videoPlay = self.Gos.MoviePlayWindows.transform:GetComponent("VideoPlayer");
+	self.videosource = self.Gos.MoviePlayWindows.transform:GetComponent("AudioSource");
+	self.sliderVolume = self.Gos.SliderVolume.transform:GetComponent("Slider");  
+	self.sliderVideo = self.Gos.SliderMovieLength.transform:GetComponent("Slider"); 
+
+	self.playWindowsTrans = self.Gos.MoviePlayWindows.transform:GetComponent("RectTransform");
+	self.playBgTrans = self.Gos.PlayWindowsBg.transform:GetComponent("RectTransform");
+
+	self.TextTotal = self.Gos.TextTotal.transform:GetComponent("Text");
+	self.TextCurrent = self.Gos.TextCurrent.transform:GetComponent("Text");
+end
+
+--初始化视频控制参数
+function UIPlayPage:InitVideoPlay()
+	--视频进度初始
+	self.sliderVideo.value = 0;
+	--音量初始
+	self.sliderVolume.value = 0.5;
+	--获取总长标志
+	ishavetotaltime=true;
+	--开始默认没播放完
+	isplayfinish = false;
+	--计时
+    timecount = 0;
+    --当前时长
+    timecurrent = 0;
+	--准备
+	self.videoPlay:Prepare(); 	
+end
+
+--刷新相关视频界面
+function UIPlayPage:ShowRight()
+	local relateddata = LocalDataHelper.GetRelatedData(self.movieinfo.url)
+	local SVCHelper = UILuaBehaviour.GetLuaBehaviour(self.Gos.RelatedMovieContent);
+	SVCHelper:Load(#relateddata,function(childNodeObj,index)	                         
+        local nameText = childNodeObj.transform:Find("Text_Name").gameObject:GetComponent("Text");
+        local button = childNodeObj:GetComponent("Button");
+        local thisMovieData = relateddata[index];
+
+        nameText.text = thisMovieData.name;
+        button.onClick:RemoveAllListeners();
+        button.onClick:AddListener(function ()
+    		self:PlayMovie(thisMovieData);  
+			self:OnClickPlay();
+        end)
+    end); 
+end
+
+--刷新名字
+function UIPlayPage:RefreshMovieName()
+	self.Gos.Titlemoviename.transform:GetComponent("Text").text = self.movieinfo.name
+end
+
+function UIPlayPage:RefreshBackGroundFrameButtonColor(index1,index2)
+	local UIBackgroundFrame = AppCtrl.UIMgr.FindUIByName("UIBackgroundFrame")
+    assert(UIBackgroundFrame,"error:Dont't have UIBackgroudFrame")
+    UIBackgroundFrame:SetButtonStyle(index1,index2);
+end
+
+--播放电影（暂时只是用于点击相关视频刷新播放界面状态）
+--movieclip:videoclip， moviename：电影名字，用于刷新右界面
+function UIPlayPage:PlayMovie(movieinfo)
+	self.movieinfo = movieinfo;
+	--点击相关视频也要保存下历史播放数据
+	SearchHistoryData.SetHistoryPlayInfo( self.movieinfo.name,self.movieinfo.url )
+	self.videoPlay.url = movieinfo.url;
+	--播放电影的时候同时刷新播放界面和相关视频界面
+	self:InitVideoPlay();
+	self:RefreshMovieName();
+    self:ShowRight();   
+end
+
+--------------------------------------------------------------------------------------------------
+function UIPlayPage:Start()
+   if self.movieinfo then
+   	    --print("初始化playpage")
+   	    --播放按钮颜色变化
+        self:RefreshBackGroundFrameButtonColor(0,1)
+		--初始化属性
+		self:Init();
+		--初始化播放器
+		self:InitVideoPlay();
+		--刷新名字显示
+		self:RefreshMovieName();
+		--刷新右界面
+		self:ShowRight();
+		if isUrlModel then	   
+		   self.videoPlay.url = self.movieinfo.url		   
+		end
+		self:OnClickPlay()
+   else 	   
+       print("Don't have MovieInfo!!!")	
+   end  
+end
+
+function UIPlayPage:Update()
+	--时间初始，以及一些参数的传递
+	--由于从url获取视频总长有延迟所以放在updata里去设置总长
+	if self.videoPlay.isPlaying and ishavetotaltime then
+		if isUrlModel then
+		    --总时长=帧数/帧速率(从url读取视频的时候用)
+		    self.sliderVideo.maxValue = math.floor(self.videoPlay.frameCount/self.videoPlay.frameRate);
+		else
+		    self.sliderVideo.maxValue = math.floor(self.videoPlay.clip.length);
+		end	
+		--设置总时长
+		self:ShowTotalTime(math.ceil(self.sliderVideo.maxValue));
+		--print("总时长是："..self.sliderVideo.maxValue)		
+		--设置初始播放时间，当没有lasttime这个数据的时候，value为初始值0
+        self.sliderVideo.value = self.movieinfo.lasttime
+        --print("设置播放开始时刻："..self.sliderVideo.value)
+        self:MovieLengthControl()      
+        --控制单次进入
+		ishavetotaltime = not ishavetotaltime;
+	end
+    --实时设置播放界面大小
+	self:Setvideoplaywindowssize()
+	--图像刷新
+    self.image.texture = self.videoPlay.texture 
+    --当前时间刷新
+    if self.videoPlay.isPlaying then   
+	    timecount = timecount + CS.UnityEngine.Time.deltaTime;
+	    if (timecount - timecurrent)>=1 then
+	       self.sliderVideo.value = self.sliderVideo.value+1;
+	       self:TimeShow(math.ceil(self.videoPlay.time));
+	       timecurrent = timecount;
+	    end
+    end   
+
+    if not isplayfinish and math.ceil(self.sliderVideo.value) == self.sliderVideo.maxValue then
+        --print("播放完毕！！！")
+        self.videoPlay:Stop();		
+        isplayfinish = true;
+    end
+
+    if isplayfinish then    	
+        timecount = 0;
+		timecurrent = 0;
+		self.sliderVideo.value = 0;
+        self.Gos.ButtonPlay:SetActive(true);
+        self.Gos.ButtonPause:SetActive(false);
+        isplayfinish = false;
+    end
+end
+
+-------------------------------------ButtonMethod----------------------------------------------
+--开始
+function UIPlayPage:OnClickPlay()
+	self.videoPlay:Play();
+    self.Gos.ButtonPlay:SetActive(false)
+    --print(self.Gos.ButtonPlay.activeSelf)
+    self.Gos.ButtonPause:SetActive(true)
+    --print(self.videoPlay.isPrepared)
+end
+
+--暂停
+function UIPlayPage:OnClickPause()
+	self.videoPlay:Pause();
+	self.Gos.ButtonPlay:SetActive(true)
+    self.Gos.ButtonPause:SetActive(false)
+    --print(self.videoPlay.isPrepared)
+end
+
+--静音
+function UIPlayPage:Mute()
+	self.sliderVolume.value = 0;
+	self.videosource.volume = 0;
+	self.Gos.ButtonVolume:SetActive(false);
+	self.Gos.ButtonMute:SetActive(true);
+end
+
+--关闭静音
+function UIPlayPage:CloseMute()
+	self.sliderVolume.value = 0.3;
+	self.videosource.volume = 0.3;
+	self.Gos.ButtonVolume:SetActive(true);
+	self.Gos.ButtonMute:SetActive(false);
+end
+
+--隐藏右界面
+function UIPlayPage:HideRightPage()
+	self.Gos.RightPage:SetActive(false);
+end
+
+--显示右界面
+function UIPlayPage:ShowRightPage()
+	self.Gos.RightPage:SetActive(true);
+end
+
+--全屏
+function UIPlayPage:OnClickFullScreen()
+	--self.Gos.MoviePlayWindows.transform:GetComponent("RectTransform").sizeDelta= CS.UnityEngine.Vector2(1366,770)
+	self.Gos.PlayWindowsBg.transform:SetParent(self.transform,false);
+	self.Gos.Buttonfullscreen:SetActive(false);
+	self.Gos.Buttonclosefull:SetActive(true);
+    --
+    local resolutions = Screen.resolutions
+    Screen.SetResolution(resolutions[resolutions.Length - 1].width, resolutions[resolutions.Length - 1].height, true);
+    Screen.fullScreen = true;
+end
+
+--退出全屏
+function UIPlayPage:OnClickCloseFullScreen()
+    --self.Gos.MoviePlayWindows.transform:GetComponent("RectTransform").sizeDelta= CS.UnityEngine.Vector2(1064,718)  
+    self.Gos.PlayWindowsBg.transform:SetParent(self.Gos.Leftwindows.transform,false);  
+    self.Gos.Buttonfullscreen:SetActive(true);
+	self.Gos.Buttonclosefull:SetActive(false);
+	--
+    Screen.SetResolution(1366, 768, false);
+    Screen.fullScreen = false;  
+end
+
+--返回
+function UIPlayPage:Back()
+	NotifyMgr.SendEvent(NotifyMgr.EventList.EndMovie);
+	
+	AppCtrl.UIMgr.RemoveTop()
+    self:RefreshBackGroundFrameButtonColor(1,0)
+	--print("当前播放时间"..self.sliderVideo.value)
+	self:SaveTime(self.sliderVideo.value)
+end
+------------------------------------SliderMethod--------------------------------------------------
+--时间控制（关联进度条的点击和拖动事件）
+function UIPlayPage:MovieLengthControl()
+	self.videoPlay.time = self.sliderVideo.value
+    self:TimeShow(math.ceil(self.videoPlay.time));
+end
+
+--音量控制（关联音量滑动条）
+function UIPlayPage:VolumeControl()
+	self.videosource.volume = self.sliderVolume.value;
+	if self.sliderVolume.value ==0 then
+       self.Gos.ButtonVolume:SetActive(false);
+	   self.Gos.ButtonMute:SetActive(true);
+	else
+	   self.Gos.ButtonVolume:SetActive(true);
+	   self.Gos.ButtonMute:SetActive(false);
+	end    
+end
+-------------------------------------------------------------------------------------------------
+--当前时间显示
+function UIPlayPage:TimeShow( time )
+	local mint = math.floor(time/60)
+    local second = time%60
+    local currenttime = self:FormatTime(mint)..":"..self:FormatTime(second)
+    self.TextCurrent.text = currenttime;
+end
+
+--总时长显示
+function UIPlayPage:ShowTotalTime( time )
+	local mint = math.floor(time/60)
+    local second = time%60
+    local currenttime = self:FormatTime(mint)..":"..self:FormatTime(second)
+    self.TextTotal.text = currenttime;
+end
+
+function UIPlayPage:FormatTime( num )
+	if num < 10 then
+	  return  "0"..num
+	else
+	  return num 
+	end
+end
+
+local bgLastRatio = nil;
+--根据当前播放视频设置播放界面宽高比
+function UIPlayPage:Setvideoplaywindowssize()
+	if (self.videoPlay.texture == nil) then
+		return;
+	end	
+
+	--视频高宽比
+	local videorario = self.videoPlay.texture.height/self.videoPlay.texture.width
+	--父物体宽高比
+	local BGheight = self.playBgTrans.rect.height;
+	local BGwidth = self.playBgTrans.rect.width;
+	local BGrario = self.playBgTrans.rect.height / self.playBgTrans.rect.width;
+	if (BGrario ~= bgLastRatio) then
+		--如果视频的高宽比比当前BG的高宽比大，则以当前BG的高为基准去设定宽
+	    if (videorario > BGrario) then     
+	       self.playWindowsTrans.sizeDelta = Vector2(BGheight/videorario,BGheight);
+	    --否则以宽为基准去设定高
+	    else 
+	       self.playWindowsTrans.sizeDelta = Vector2(BGwidth,BGwidth*videorario);
+	    end
+	    bgLastRatio = BGrario;
+	else
+		return;
+	end
+end
+
+return UIPlayPage;

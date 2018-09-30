@@ -1,0 +1,30 @@
+local LoadSceneMode = CS.UnityEngine.SceneManagement.LoadSceneMode;
+local SceneList = {}
+SceneList.list = {
+	--scene
+	Login 			= {pathName = "Scenes/Login.unity",					mode = LoadSceneMode.Single},
+	-- GameFight 		= {pathName = "Scene/GameFight.unity",				mode = LoadSceneMode.Additive},
+	Game 			= {pathName = "Scenes/Game.unity",					mode = LoadSceneMode.Single},
+	Map1 			= {pathName = "Scenes/Cub_World.unity",					mode = LoadSceneMode.Additive},
+	Map2 			= {pathName = "Scenes/Cub_World_New.unity",					mode = LoadSceneMode.Additive},
+}
+--
+function SceneList.get(s)
+	if type(s) == "string" then
+		if string.find(s,".unity") then
+			TRACKBACK__Warning("Please Use New SCENE mode(Insert SCENE into AppCtrl.SceneList)!")
+			for k,v in pairs(SceneList.list) do
+				if v.pathName == s then
+					return v;
+				end
+			end
+		else
+			return SceneList.list[s];
+		end
+	elseif type(s) == "table" then
+		TRACKBACK__Warning("Please Use New SCENE mode(Insert SCENE into AppCtrl.SceneList)!")
+		return s;
+	end
+	
+end
+return SceneList

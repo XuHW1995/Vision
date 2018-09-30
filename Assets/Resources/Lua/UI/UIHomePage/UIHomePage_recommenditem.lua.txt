@@ -1,0 +1,42 @@
+local Class = require('Behaviour/Class');
+local UILuaBehaviour = require('Behaviour/UILuaBehaviour');
+local UIHomePage_recommenditem = Class.Class(UILuaBehaviour);
+
+local UIMovieNode = require("UI/UIMovieNode");
+local NotifyMgr = require("AppCtrl/NotifyMgr");
+
+--data:{["titlename"]="",["showmoviedata"]={......} }
+function UIHomePage_recommenditem:Constructor(obj, data, menuname)
+	self.obj = obj;
+	self.data = data;
+	self.menuname = menuname;
+
+	self.titleText = self.obj.transform:Find("Text_Title").gameObject:GetComponent("Text");
+	self.button = self.obj.transform:Find("Button_More").gameObject:GetComponent("Button");
+	self.movieContent = self.obj.transform:Find("Movies").gameObject;
+
+	self:AddButtonEvent();
+	self:Show();
+end
+
+--刷新推荐页面各栏的显示
+function UIHomePage_recommenditem:Show()
+	self.titleText.text = self.data.titlename;
+	local SVCHelper = UILuaBehaviour.GetLuaBehaviour(self.movieContent);
+    SVCHelper:Load(#self.data.showmoviedata,function(childNodeObj, index)  
+        UIMovieNode(self.data.showmoviedata[index], childNodeObj);
+    end)  
+end
+
+function UIHomePage_recommenditem:AddButtonEvent()
+    local function more()
+    	--self.menulb:SetSelect(self.menuname)
+		--self.menulb.callback(self.menuname)
+		NotifyMgr.SendEvent(NotifyMgr.EventList.GetMoreMovie, self.menuname);
+    end 
+
+    self.button.onClick:RemoveAllListeners();     
+    self.button.onClick:AddListener(more);
+end
+
+return UIHomePage_recommenditem;

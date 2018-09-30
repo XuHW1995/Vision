@@ -1,0 +1,394 @@
+
+local GameObject = CS.UnityEngine.GameObject;
+local Resources = CS.UnityEngine.Resources;
+local Instantiate = CS.UnityEngine.GameObject.Instantiate
+local ResMgr = {};
+
+ResMgr.timerid = nil;
+ResMgr.DownloadPath = CS.UnityEngine.Application.persistentDataPath.."/AssetBundles/"
+ResMgr.PackagePath = CS.UnityEngine.Application.streamingAssetsPath.."/"
+ResMgr.DependenciesManifest = nil;
+ResMgr.abCache = {} --assetbundle cache
+
+function ResMgr.Init()
+	--
+	--ResMgr.timerid = AppCtrl.TimerMgr.Add(0.1, ResMgr.TimerUpdate)
+
+	-- if not CS.UnityEngine.Application.isEditor then
+	-- 	ResMgr.DependenciesManifest = ResMgr.DependenciesManifest or ResMgr.InitDependenciesManifest();
+	-- end
+	
+	--[[ResMgr.Load("prefabs/carport/carport.prefab",function( a )
+		print("fuck wangchaos")
+		GameObject.DontDestroyOnLoad(Instantiate(a))
+	end)]]
+	--[[ResMgr.AsyncLoad("prefabs/carport/carport.prefab",function( a )
+		print("fuck wangchaos")
+		GameObject.DontDestroyOnLoad(Instantiate(a))
+	end)]]
+end
+
+function ResMgr.Destroy()
+	--AppCtrl.TimerMgr.Delete(ResMgr.timerid)
+	ResMgr.DependenciesManifest = nil;
+end
+
+--[[
+	资源加载 同步 参数：如 Prefab/cars/car1.prefab Prefab/cars/car1.png Prefab/cars/car1.unity
+]]
+-- function ResMgr.Load(relativePath)
+-- 	local asset
+-- 	if CS.UnityEngine.Application.isEditor then--加载普通资源
+-- 		local fullPath = ResMgr.GetEditorAssetPathName(relativePath);
+-- 		--print(fullPath)
+-- 		asset = CS.UnityEditor.AssetDatabase.LoadAssetAtPath(fullPath,typeof(CS.UnityEngine.Object));
+-- 		assert(asset,"ResMgr.Load error:"..fullPath)
+-- 	else--加载assetbundle
+-- 		local abName = ResMgr.GetAssetBundleName(relativePath);
+-- 		local abCache = ResMgr.existABCache(abName)
+-- 		local ab;
+-- 		if abCache then
+-- 			ab = abCache.ab;
+-- 		end
+-- 		if not ab then
+-- 			ab = ResMgr.LoadAB(abName);
+-- 		end
+-- 		local assetName = ResMgr.GetAssetBundleAssetName(relativePath);
+-- 		print("------------",ab,relativePath,abName,assetName)
+--         --流场景资源不通过LoadAsset方法加载
+--         if not ab.isStreamedSceneAssetBundle then
+--         	asset = ab:LoadAsset(assetName,typeof(CS.UnityEngine.Object))
+--         end
+-- 		--ab缓存3秒
+-- 		--[[AppCtrl.TimerMgr.Add(3,function( ... )
+-- 			ResMgr.ClearABCache(abName)
+-- 		end,false,1)]]
+
+-- 	end
+-- 	local t2d = nil;
+-- 	if asset and string.find(tostring(asset), 'UnityEngine.Texture2D') then
+-- 		-- print("Load a Texture2D!!!")
+-- 		t2d = asset;
+--         local rect = CS.UnityEngine.Rect(0, 0, asset.width, asset.height)
+--         asset = CS.UnityEngine.Sprite.Create(asset, rect, CS.UnityEngine.Vector2(0.5, 0.5));
+--     end
+-- 	return asset,t2d;
+-- end
+
+function ResMgr.Load(relativePath)
+	local assetrealpath = ResMgr.deal_path(relativePath)
+	local asset = Resources.Load(assetrealpath)
+	assert(asset,"Resources load faild !Path:"..assetrealpath)
+	return asset;
+end
+
+function ResMgr.deal_path(path)
+	local a = string.find(path, ".prefab");
+	if a ~= nil then
+		return string.sub(path, 1, a - 1);
+	end
+
+	local b = string.find(path, ".png");
+	if b ~= nil then
+		return string.sub(path, 1, b - 1);
+	end	
+	return path;
+end
+
+--[[
+	资源加载 异步 参数：如 Prefab/cars/car1.prefab Prefab/cars/car1.png Prefab/cars/car1.unity
+]]
+function ResMgr.AsyncLoad(relativePath,callback)
+	--do return ResMgr.Load(relativePath,callback) end
+
+	if CS.UnityEngine.Application.isEditor then
+		local fullPath = ResMgr.GetEditorAssetPathName(relativePath);
+		print(fullPath)
+		local asset = Game.PathAndFile.AssetDatabaseLoadAsset(fullPath,CS.UnityEngine.GameObject);
+		callback(asset);
+	else
+		ResMgr.timerid = AppCtrl.TimerMgr.Add(0.2, ResMgr.TimerUpdate);
+		ResMgr.AsyncLoadAB(relativePath,callback);
+	end
+end
+
+
+
+---------------------------------------------私有函数----------------------------------------------------
+function ResMgr.GetEditorAssetPathName( relativePath )
+	return "Assets/Resources/"..relativePath
+end
+
+function ResMgr.GetAssetBundleAssetName( relativePath )
+	return "Assets/Resources/"..relativePath
+end
+
+--[[
+relativePath: 相对目录下的资源 如：Prefabs/xxx.prefab  Image/fuck/xxx.png  Config/pbc/clientdata.bytes
+return: 获取全路径，优先读取下载下来的
+]]
+function ResMgr.GetAssetBundleName( relativePath )
+	local ABrelativePath = nil;
+	local ret = nil;
+	if ret ~= 1 then
+		ABrelativePath ,ret= string.gsub(relativePath, '(.+%.)prefab$', '%1ab')
+	end
+	if ret ~= 1 then
+		ABrelativePath ,ret= string.gsub(relativePath, '(.+%.)bytes$', '%1ab')
+	end
+	if ret ~= 1 then
+		ABrelativePath ,ret= string.gsub(relativePath, '(.+%.)unity$', '%1ab')
+	end
+    if ret ~= 1 then
+		ABrelativePath ,ret= string.gsub(relativePath, '(.+%.)mat$', '%1ab')
+	end
+	if ret ~= 1 then
+		ABrelativePath ,ret= string.gsub(relativePath, '(.+%.)ab$', '%1ab')
+	end
+	if ret ~= 1 then
+		ABrelativePath ,ret= string.gsub(relativePath, '(.+)/[^/]+$', '%1.ab')
+	end
+	if "StreamingAssets" == relativePath then -- 特例 AssetBundles
+		ret = 1;
+	end
+	assert(ret == 1,"ResMgr.GetAssetBundlePathName error:"..relativePath);
+	return  string.lower(ABrelativePath)
+end
+
+--[[
+AssetBundleName: ab 名称 如：Prefabs/xxx.prefab  Image/fuck.ab(Image/fuck/xxx.png)
+return: 获取全路径，优先读取下载下来的
+]]
+function ResMgr.GetAssetBundleFullPathName( AssetBundleName )
+	if "StreamingAssets" ~= AssetBundleName then
+		AssetBundleName = string.lower(AssetBundleName)
+	end
+	local updateRes = ResMgr.DownloadPath..AssetBundleName --更新的res
+	if CS.System.IO.File.Exists(updateRes) then
+		return updateRes
+	end
+	return ResMgr.PackagePath..AssetBundleName
+end
+
+
+
+function ResMgr.LoadAB(AssetBundleName)
+	local existAB = ResMgr.existABCache(AssetBundleName)
+	if existAB then
+		return existAB.ab
+	end
+	local abpn = ResMgr.GetAssetBundleFullPathName(AssetBundleName);
+	--加载依赖ab
+	local dependencies = ResMgr.DependenciesManifest:GetAllDependencies(AssetBundleName)
+	--print("----------------------",AssetBundleName);
+	for i=0,dependencies.Length-1 do
+		--print("++++++++++++++++++++++++++",dependencies[i]);
+		ResMgr.LoadAB(dependencies[i])
+	end
+	local ab = CS.UnityEngine.AssetBundle.LoadFromFile(abpn);
+	--缓存ab
+	ResMgr.AddABCache(AssetBundleName,ab)
+	return ab;
+end
+
+
+-----------------------------------------------主依赖文件（StreamingAssets）---------------------------
+function ResMgr.InitDependenciesManifest()
+	local fullPath = ResMgr.GetAssetBundleFullPathName("StreamingAssets");
+	print(fullPath)
+	local ab = CS.UnityEngine.AssetBundle.LoadFromFile(fullPath);
+	local asset = ab:LoadAsset("AssetBundleManifest",typeof(CS.UnityEngine.Object));
+	ab:Unload(false);
+	return asset
+end
+-------------------------------------------------AssetBundle缓存----------------------------
+--[[
+	Assetbundle缓存
+]]
+function ResMgr.AddABCache( abname,ab )
+	if ResMgr.abCache[abname] then
+		ResMgr.abCache[abname].refCnt = ResMgr.abCache[abname].refCnt + 1;
+	else
+		local t = {};
+		t.ab = ab;
+		t.refCnt = 1;
+		ResMgr.abCache[abname] = t;
+	end
+end
+
+function ResMgr.existABCache( abname )
+	return ResMgr.abCache[abname]
+end
+
+--[[
+function ResMgr.ClearABCache( abname )
+	assert(ResMgr.abCache[abname],"Must be!")
+	if ResMgr.abCache[abname] then
+		ResMgr.abCache[abname].refCnt = ResMgr.abCache[abname].refCnt - 1;
+		if ResMgr.abCache[abname].refCnt <= 0 then
+			ResMgr.abCache[abname].ab:Unload(false);
+			ResMgr.abCache[abname] = nil;
+		end
+	end
+end]]
+-------------------------------------------------异步加载部分----------------------------------------------------
+ResMgr.AsyncLoadList = {}
+
+function ResMgr.isAsyncLoad(relativePath)
+	for i,v in ipairs(ResMgr.AsyncLoadList) do
+		if v.key == relativePath then
+			return i;
+		end
+	end
+end
+
+function ResMgr.removeAsync(relativePath )
+	local retIndex = ResMgr.isAsyncLoad(relativePath);
+	if retIndex then
+		table.remove(ResMgr.AsyncLoadList,retIndex);
+	end
+end
+
+
+function ResMgr.AsyncLoadAB(relativePath,callback)
+	local index;
+	index = ResMgr.isAsyncLoad(relativePath);
+	if index then
+		--print("async load alreadly loading:",relativePath);
+		table.insert(ResMgr.AsyncLoadList[index].cb,callback);
+		return ResMgr.AsyncLoadList[index];
+	else
+		local t = {}
+		t.key = relativePath;--资源相对路径，作为key
+		t.cb = {};--存放回调
+		t.abLoad_state = 0;--0未加载，1加载中，2已加载
+		t.ab = nil;--AssetBundle
+		t.assetLoad_state = 0;----0未加载，1加载中，2已加载
+		t.asset = nil;--加载好的asset
+		t.dependenciesList = {}--依赖的ab加载列表
+		table.insert(t.cb,callback);
+		table.insert(ResMgr.AsyncLoadList,t);
+		return t;
+	end
+end
+
+ResMgr.ABRecord = {}; --用来记录哪些ab已经加入到了依赖列表和异步加载列表里面，防止重复进队列造成卡死
+
+function ResMgr.TimerUpdate()
+	--print("ResMgr.AsyncLoadList count:",#ResMgr.AsyncLoadList)
+	for i,v in ipairs(ResMgr.AsyncLoadList) do
+		local abName = ResMgr.GetAssetBundleName(v.key);
+
+		for i2 = #v.dependenciesList, 1, -1 do -- 定期清理依赖列表中已经被加载好的项
+			local v2 = v.dependenciesList[i2];
+			if v2.abLoad_state == 3 then
+				table.remove(v.dependenciesList, i2);
+			end
+		end
+
+		if v.abLoad_state == 0 then --assetbundle加载初始化
+			--print("ab async load begin:",v.key);
+			--加载依赖ab
+			local dependencies = ResMgr.DependenciesManifest:GetAllDependencies(abName)
+			for i1=1,dependencies.Length do
+				if ResMgr.ABRecord[dependencies[i1 - 1]] == nil then --未进依赖队列和异步加载队列时执行
+					table.insert(v.dependenciesList,ResMgr.AsyncLoadAB(dependencies[i1 - 1],nil))
+					ResMgr.ABRecord[dependencies[i1 - 1]] = true; --记录该依赖项已进依赖队列和异步加载队列
+					--print("ab async load begin:",v.key," dependencies:",dependencies[i1]);
+				end
+			end
+			--
+			local alldone = true;
+			for i2,v2 in ipairs(v.dependenciesList) do
+				--print("00000000000000000",v2.ab)
+				if not v2.ab  or not v2.ab.isDone then
+					alldone = false;
+					break;
+				end
+			end
+			if alldone then
+				local eac = ResMgr.existABCache(abName);
+				if eac then --如果存在缓存，则模仿异步加载完成后的结果(按异步加载的方式填充ab)
+					v.ab = {}
+					v.ab.isDone = true;
+					v.ab.assetBundle = eac.ab.assetBundle;
+				else
+					local abpn = ResMgr.GetAssetBundleFullPathName(abName);
+					v.ab = CS.UnityEngine.AssetBundle.LoadFromFileAsync(abpn);
+				end
+				v.abLoad_state = 1;
+			end
+		elseif v.abLoad_state == 1 then--assetbundle加载中
+			if v.ab.isDone then
+				--print("ab async loading:",v.key);
+				if v.ab.assetBundle ~= nil then
+					v.ab = v.ab.assetBundle;
+					ResMgr.AddABCache(abName,v.ab)--缓存ab
+					v.abLoad_state = 2;
+				end
+			end
+		elseif v.abLoad_state == 2 then--assetbundle加载完成
+			if #v.dependenciesList == 0 then --只有当依赖项都完全加载完之后，才加载该ab
+				--[[if  #v.cb == 0 then -- 没回调的则是依赖的ab 无须下面的操作
+					ResMgr.removeAsync(v.key)
+					return;
+				end]]
+				--print("ab async loaded:",v.key);
+				
+				if v.ab == nil then --如果没有ab（或者ab没有加载出来），则不处理
+					return;
+				end
+
+				if v.ab.isStreamedSceneAssetBundle then --流场景特殊处理
+					for i1, v1 in ipairs(v.cb) do
+						v1(); --调用场景的回调
+					end
+					ResMgr.removeAsync(v.key);
+					return;
+				end
+
+				if v.assetLoad_state == 0 then--asset加载初始化
+					--print("asset async load begin:",v.key);
+					local assetName = ResMgr.GetAssetBundleAssetName(v.key);
+					v.asset = v.ab:LoadAssetAsync(assetName,typeof(CS.UnityEngine.Object))
+					v.assetLoad_state = 1;
+				elseif v.assetLoad_state == 1 then--asset加载中
+					if v.asset.isDone then
+						--print("asset async loading:",v.key);
+						v.asset = v.asset.asset;
+						v.assetLoad_state = 2;
+					end
+				elseif v.assetLoad_state == 2 then--asset加载完成
+					--print("asset async loaded:",v.key);
+					--释放当前任务
+					ResMgr.removeAsync(v.key)
+					v.abLoad_state = 3; --标记为删除状态
+					--ResMgr.removeAsyncLoad(v.key)
+					--
+					if v.asset and string.find(Slua.ToString(v.asset), 'CS.UnityEngine.Texture2D') then
+						t2d = v.asset;
+				        local rect = CS.UnityEngine.Rect(0, 0, v.asset.width, v.asset.height)
+				        v.asset = CS.UnityEngine.Sprite.Create(v.asset, rect, CS.UnityEngine.Vector2(0.5, 0.5));
+				    end
+				    --
+					for i1,v1 in ipairs(v.cb) do
+						v1(v.asset)
+					end
+					break;--跳出循环 一帧只能有一个物体回调加载完成
+				else
+					assert(false,"ResMgr.AsyncLoadAB assetLoad_state error")
+				end
+			end
+		elseif v.abLoad_state == 3 then --删除状态
+		else
+			assert(false,"ResMgr.AsyncLoadAB abLoaded_state error")
+		end
+	end
+	if ResMgr.timerid ~= nil and #ResMgr.AsyncLoadList == 0 then
+		AppCtrl.TimerMgr.Delete(ResMgr.timerid);
+		ResMgr.timerid = nil;
+	end
+	return true
+end
+
+return ResMgr;

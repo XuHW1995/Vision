@@ -1,0 +1,58 @@
+local Class = require('Behaviour/Class');
+local LuaBehaviour = require('Behaviour/LuaBehaviour');
+local TimerMgr = Class.Class(LuaBehaviour);
+
+
+function TimerMgr.Init()
+
+	TimerMgr.timers = {}
+
+	assert(CS.UnityEngine.GameObject.Find("TimerMgr") == nil);
+	local gameobject = CS.UnityEngine.GameObject('TimerMgr')
+	LuaBehaviour.AddComponentLuaMB(gameobject,"AppCtrl/TimerMgr")
+	return gameobject
+end
+
+function TimerMgr:Update()
+	for id,v in pairs(TimerMgr.timers) do
+		local time = os.clock();
+		if time - v.lastTime >= v.intervalSecond then
+			v.callback(time - v.lastTime,id,v.times);
+			v.lastTime = time;
+			if v.times ~= nil and v.times > 0 then
+				v.times = v.times - 1;
+				if v.times == 0 then
+					TimerMgr.Delete(id)
+				end
+			end
+		end
+	end
+
+end
+
+function TimerMgr.Destroy()
+	TimerMgr.timers = {}
+end
+
+--[[
+intervalSecond 定时器间隔时间 单位秒
+func 回调函数 参数 1 dt:与上一次执行的间隔时间 2：id 定时器的id 3：times 执行次数(只有在times参数>0时才会有)
+rightnow 是否立即执行
+times  执行次数
+]]
+function TimerMgr.Add(intervalSecond,func,rightnow,times)
+	local id = #TimerMgr.timers + 1
+	TimerMgr.timers[id] = {};
+	TimerMgr.timers[id].intervalSecond = intervalSecond;
+	TimerMgr.timers[id].callback = func;
+	TimerMgr.timers[id].lastTime = os.clock();
+	TimerMgr.timers[id].times = times;
+	return id;
+end
+
+function TimerMgr.Delete(id)
+	--print("TimerMgr.Delete:",id)
+	assert(TimerMgr.timers[id],"Already delete")
+	TimerMgr.timers[id] = nil;
+end
+return TimerMgr;

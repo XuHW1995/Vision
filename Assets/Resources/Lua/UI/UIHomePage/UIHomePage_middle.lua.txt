@@ -1,0 +1,161 @@
+local Class = require('Behaviour/Class');
+local UILuaBehaviour = require('Behaviour/UILuaBehaviour');
+local UIHomePage_middle = Class.Class(UILuaBehaviour);
+local Vector2 = CS.UnityEngine.Vector2
+local LocalDataHelper = require("Data/LocalDataHelper")
+local SearchMethod = require('Data/SearchMethod')
+
+local UIMovieNode = require("UI/UIMovieNode");
+local RecommendItem = require("UI/UIHomePage/UIHomePage_recommenditem");
+
+function UIHomePage_middle:Start(  )
+    self.pageLb = UILuaBehaviour.GetLuaBehaviour(self.Gos.UIPagePanel);   
+    --注册回调
+    self.pageLb:SetPagePanelCallBack(function (currentpagenum)
+        self:RefreshOtherPageByPageNum(currentpagenum);
+    end)
+end
+
+--根据menuname决定显示界面
+function UIHomePage_middle:Show(menuname)
+    self.menuname = menuname;
+    if (menuname and menuname == "推荐") then
+        self:ShowRecommendPage();
+    else
+        self:ShowOtherPage(menuname);
+    end
+end
+--------------------------------------推荐页----------------------------------------------------
+--显示推荐页
+function UIHomePage_middle:ShowRecommendPage()
+	self.Gos.RecommendPage:SetActive(true);
+	self.Gos.OtherPage:SetActive(false);  
+
+	local recommenddata = LocalDataHelper.GetRecommendData()
+	local SVCHelper = UILuaBehaviour.GetLuaBehaviour(self.Gos.RecommendPage);
+    SVCHelper:Load(#recommenddata,function(childNodeObj,index)        
+        RecommendItem(childNodeObj, recommenddata[index], recommenddata[index].titlename);
+    end)
+    --middle尺寸适配
+	self:SetMiddleSizeDelta("推荐", #recommenddata);
+end
+--------------------------------------其他分页-----------------------------------------------------
+--显示其他分页
+function UIHomePage_middle:ShowOtherPage(menuname)
+	self.Gos.RecommendPage:SetActive(false);
+	self.Gos.OtherPage:SetActive(true);	 
+    self:InitOtherPage(menuname)
+end
+
+function UIHomePage_middle:InitOtherPage( menuname )
+    local otherdata = SearchMethod.SearchByConditions(menuname,nil,nil);
+    local Dividedata ,pagecount = LocalDataHelper.DivideSearchResultData(otherdata);
+    self.dividedata = Dividedata;
+    self.pagecount = pagecount;
+    self.con1 = "全部";
+    self.con2 = "全部";
+    --pagepanel刷新
+    self.pageLb:Show(self.pagecount);
+    --展示第一页内容
+    self:RefreshOtherPageByPageNum(1);
+    --根据menuname刷新检索条目
+    self:RefreshSearchPanel(menuname);
+    --middle尺寸适配
+    self:SetMiddleSizeDelta(menuname);
+end
+
+--刷新检索界面显示
+function UIHomePage_middle:RefreshSearchPanel(menuname)
+    local SVCHelper = UILuaBehaviour.GetLuaBehaviour(self.Gos.SearchPage);
+    if menuname =="小初高" then
+        SVCHelper:Load(2,function(childNodeObj,index)      
+            --一级检索条目刷新
+            if index == 1 then
+                childNodeObj:SetActive(true)
+                local firstcolumlb = UILuaBehaviour.GetLuaBehaviour(childNodeObj);
+                firstcolumlb:Show(menuname,1)
+            else
+                --二级检索栏先隐藏
+                childNodeObj:SetActive(false)    
+            end
+        end)
+    else
+        SVCHelper:Load(1,function(childNodeObj,index)    
+            childNodeObj:SetActive(true)  
+            local firstcolumlb = UILuaBehaviour.GetLuaBehaviour(childNodeObj);
+            firstcolumlb:Show(menuname,1)    
+        end)
+    end
+end
+
+--打开并且刷新二级检索栏
+--firstcallbackstr
+function UIHomePage_middle:OpenAndShowSecondSearchPanel(firstcallbackstr)
+    --记录当前一级回调
+    self.con1 = firstcallbackstr;
+    self.con2 = "全部"
+    local secoundcolumobj = self.Gos.SearchPage.transform:GetChild(1).gameObject;
+    secoundcolumobj:SetActive(true)
+    local secondcolumlb = UILuaBehaviour.GetLuaBehaviour(secoundcolumobj);
+    secondcolumlb:Show(firstcallbackstr,2)
+end
+
+--根据条件1刷新界面
+function UIHomePage_middle:RefreshByGetCon1( con1 )
+    self.con1 = con1;
+    local otherdata = SearchMethod.SearchByConditions(self.menuname,self.con1,nil)
+    if #otherdata ~= 0 then   
+        self.Gos.NoData:SetActive(false)
+        local Dividedata ,pagecount = LocalDataHelper.DivideSearchResultData(otherdata) 
+        self.dividedata = Dividedata;
+        --pagepanel刷新
+        self.pageLb:Show(pagecount) 
+        --展示第一页内容
+        self:RefreshOtherPageByPageNum(1)
+    else
+        --print("当前一级分页"..con1.."无视频")
+        self.Gos.NoData:SetActive(true)
+    end
+end
+
+--根据条件2刷新界面
+function UIHomePage_middle:RefreshByGetCon2( con2 )
+    self.con2 = con2;
+    local otherdata = SearchMethod.SearchByConditions(self.menuname,self.con1,self.con2)
+    if #otherdata ~= 0 then   
+        self.Gos.NoData:SetActive(false)
+        local Dividedata ,pagecount = LocalDataHelper.DivideSearchResultData(otherdata) 
+        self.dividedata = Dividedata;
+        --pagepanel刷新
+        self.pageLb:Show(pagecount) 
+        --展示第一页内容
+        self:RefreshOtherPageByPageNum(1)
+    else
+        --print("当前二级分页"..con2.."无视频")
+        self.Gos.NoData:SetActive(true)
+    end
+end
+
+--根据当前页码刷新
+function UIHomePage_middle:RefreshOtherPageByPageNum( pagenum )
+    local SVCHelper = UILuaBehaviour.GetLuaBehaviour(self.Gos.OtherPageMiddle);
+    --assert(self.dividedata[pagenum],"Dont't have pagenum  Data!!!!"..pagenum)
+    local thispagemoviecount = #self.dividedata[pagenum]  
+    SVCHelper:Load(thispagemoviecount,function(childNodeObj,index)  
+        childNodeObj.name = index;                                                       
+        UIMovieNode(self.dividedata[pagenum][index], childNodeObj);
+    end) 
+end
+----------------------------------------------------------------------------------------------------
+--设置middle尺寸
+function UIHomePage_middle:SetMiddleSizeDelta(menuname,Recommenddatacount)
+    if (menuname == "推荐") then   
+        local preferredH = 480 * Recommenddatacount;
+        self.gameObject:GetComponent("LayoutElement").preferredHeight = preferredH;
+    else
+        local preferredH = 805
+        self.gameObject:GetComponent("LayoutElement").preferredHeight = preferredH;
+    end
+end
+
+return UIHomePage_middle;

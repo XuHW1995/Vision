@@ -1,0 +1,40 @@
+
+local NotifyMgr = {}
+
+
+
+local ListenList = {}
+
+
+
+------------------------------------------------public--------------------------------
+
+function NotifyMgr:Listening( proto,callback )
+	-- body
+	ListenList[proto] = {};
+	ListenList[proto].callback = callback;
+end
+
+function NotifyMgr:RmoveListen( proto )
+	ListenList[proto] = nil;
+end
+
+
+-----------------------------------------------protect--------------------------------------
+function NotifyMgr.Notify(proto, object, result)
+    if result.isError then
+    	local errInfo = result.exception:ToString();
+        print('Is Net Closed', result.isNetIsClosed," Error info:",errInfo);
+    else
+        --print('GameConn RecvRequest:', proto, getTableString(object));
+	    --Data.ProcessResource(object.res);
+	    --Event.Emit(events.DriverShengji, {sid = senddata.cid});
+	    if ListenList[proto] then
+	    	ListenList[proto].callback(proto, object, result);
+	    end
+    end
+end
+
+
+
+return NotifyMgr;

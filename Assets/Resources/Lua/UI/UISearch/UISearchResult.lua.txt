@@ -1,0 +1,67 @@
+local Class = require('Behaviour/Class');
+local UILuaBehaviour = require('Behaviour/UILuaBehaviour');
+local UISearchResult = Class.Class(UILuaBehaviour);
+local LocalDataHelper = require("Data/LocalDataHelper")
+
+local UIMovieNode = require("UI/UIMovieNode");
+local NotifyMgr = require("AppCtrl/NotifyMgr");
+
+function UISearchResult:AddListener()
+    NotifyMgr.RegisterListening(self, NotifyMgr.EventList.PlayMovie, function ()
+        self.gameObject:SetActive(false);
+    end)
+
+    NotifyMgr.RegisterListening(self, NotifyMgr.EventList.EndMovie, function ()
+        self.gameObject:SetActive(true);
+    end)
+end
+
+function UISearchResult:RemoveLisetener()
+    NotifyMgr.RmoveListen(self, NotifyMgr.EventList.PlayMovie);
+    NotifyMgr.RmoveListen(self, NotifyMgr.EventList.EndMovie);
+end
+
+function UISearchResult:ReceiveStartArg(arg)
+	local Dividedata ,pagecount =LocalDataHelper.DivideSearchResultData(arg)	
+	self.dividedata = Dividedata;
+	self.pagecount = pagecount;
+end
+
+function UISearchResult:Start()	
+	self:AddListener();
+
+	if #self.dividedata ==0 then
+		self.Gos.HaveData:SetActive(false);
+		self.Gos.NoData:SetActive(true);
+	else
+		self.Gos.HaveData:SetActive(true);
+		self.Gos.NoData:SetActive(false);
+		self:ShowSearchResultByPageNumber(1)	
+		self.pageLb = UILuaBehaviour.GetLuaBehaviour(self.Gos.UIPagePanel);  
+		--注册回调 
+		self.pageLb:SetPagePanelCallBack(function (currentpagenum)
+			self:ShowSearchResultByPageNumber(currentpagenum);
+		end)
+		self.pageLb:Show(self.pagecount)
+	end	
+end
+
+--根据当前页刷新界面
+function UISearchResult:ShowSearchResultByPageNumber(pagenum)      
+	local SVCHelper = UILuaBehaviour.GetLuaBehaviour(self.Gos.SearchResultContent);
+	local thispagemoviecount = #self.dividedata[pagenum]	
+	SVCHelper:Load(thispagemoviecount, function(childNodeObj,index)	                         
+		UIMovieNode(self.dividedata[pagenum][index], childNodeObj);
+    end);   
+end
+
+function UISearchResult:BackHomePage()
+	AppCtrl.UIMgr.RemoveTop()
+	AppCtrl.UIMgr.Show("UIHomePage")
+end
+
+function UISearchResult:OnDestroy()
+    self:RemoveLisetener();
+end
+
+return UISearchResult;

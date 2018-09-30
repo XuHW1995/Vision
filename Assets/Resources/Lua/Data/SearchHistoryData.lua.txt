@@ -1,0 +1,113 @@
+local Class = require('Behaviour/Class');
+local LuaBehaviour = require('Behaviour/LuaBehaviour')
+local SearchHistoryData = Class.Class(LuaBehaviour)
+local PlayerPrefs = CS.UnityEngine.PlayerPrefs;
+
+function SearchHistoryData.SetHistoryData(str)
+	if str == "" or SearchHistoryData.IsHaveThisData(str) then
+		--print("记录不能为空或记录已存在！！！")
+		return;
+	else
+	    if SearchHistoryData.IsHaveFiveData() then
+           local strtable = SearchHistoryData.GetHistoryData()
+           table.remove(strtable,1)    
+           local newstr = strtable[1]      
+           for i=2,#strtable do
+               newstr=newstr.."\n"..strtable[i]
+           end
+           newstr = newstr.."\n"..str
+           PlayerPrefs.SetString("HistoryData",newstr)
+           --print("删除第一条数据并添加新数据"..str)
+	    else
+	        local strarray = PlayerPrefs.GetString("HistoryData"); 
+			if strarray == "" or nil then 
+			    strarray = str 
+			else
+				strarray = strarray.."\n"..str
+			end		
+			PlayerPrefs.SetString("HistoryData",strarray)
+		    --print("添加搜索记录:",str)  
+	    end
+    end
+end
+
+function SearchHistoryData.GetHistoryData()
+    if PlayerPrefs.GetString("HistoryData") =="" then
+       return nil;  
+    else
+       local strarray = SearchHistoryData.Split(PlayerPrefs.GetString("HistoryData"),"\n")
+	   return strarray;
+	end	
+end
+
+function SearchHistoryData.DeleteHistoryData()
+	PlayerPrefs.DeleteKey("HistoryData");
+end
+
+function SearchHistoryData.IsHaveThisData(str)
+	local ishavethisdata = false
+	local historystringarray = SearchHistoryData.GetHistoryData()
+	if historystringarray then
+        for i=1,#historystringarray do
+			if str == historystringarray[i] then
+				ishavethisdata = true
+			end
+		end
+    end
+    return ishavethisdata;
+end
+
+function SearchHistoryData.IsHaveFiveData()
+    local ishavefivedata = false
+	local historystringarray = SearchHistoryData.GetHistoryData()
+	if historystringarray and #historystringarray == 5 then
+        ishavefivedata = true
+    end
+    return ishavefivedata;
+end
+
+--仿照C#string.split，分格字符串
+function SearchHistoryData.Split(szFullString, szSeparator)  
+	local nFindStartIndex = 1  
+	local nSplitIndex = 1  
+	local nSplitArray = {}  
+	while true do  
+		local nFindLastIndex = string.find(szFullString, szSeparator, nFindStartIndex)  
+		if not nFindLastIndex then  
+		   nSplitArray[nSplitIndex] = string.sub(szFullString, nFindStartIndex, string.len(szFullString))  
+		break  
+	end  
+		nSplitArray[nSplitIndex] = string.sub(szFullString, nFindStartIndex, nFindLastIndex - 1)  
+		nFindStartIndex = nFindLastIndex + string.len(szSeparator)  
+		nSplitIndex = nSplitIndex + 1  
+	end  
+	return nSplitArray  
+end  
+
+--历史播放数据
+function SearchHistoryData.SetHistoryPlayInfo( videoname,videourl )
+	PlayerPrefs.SetString("name",videoname)
+    PlayerPrefs.SetString("url",videourl)
+end
+
+function SearchHistoryData.SetHistoryPlayTime( videotime )
+	PlayerPrefs.SetString("lasttime",videotime)
+end
+
+function SearchHistoryData.GetHistoryPlayTime( ... )
+	return PlayerPrefs.GetString("lasttime")
+end
+
+function SearchHistoryData.GetHistoryPlayInfo()
+	if PlayerPrefs.HasKey("name")and PlayerPrefs.HasKey("url") then	
+      local movieinfo = {}
+	  movieinfo["name"] = PlayerPrefs.GetString("name")
+	  movieinfo["url"] = PlayerPrefs.GetString("url")
+	  movieinfo["lasttime"] = PlayerPrefs.GetString("lasttime")
+	  return movieinfo
+	else
+      return nil
+    end
+end
+
+return SearchHistoryData

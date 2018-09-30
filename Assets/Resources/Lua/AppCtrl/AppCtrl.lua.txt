@@ -1,0 +1,105 @@
+local GameObject = CS.UnityEngine.GameObject;
+AppCtrl = {};
+AppCtrl.ResMgr = nil;--资源管理
+AppCtrl.SceneMgr = nil;--场景管理
+AppCtrl.UIMgr = nil;--场景管理
+AppCtrl.TimerMgr = nil;--定时器管理
+AppCtrl.Globallb = nil;--lua GlobalBehaviour
+
+function AppCtrl.Init(mainObj)
+    local function AddM(file)
+        local m = require(file)
+        local go = m.Init()
+        if go then
+            go.transform.parent = mainObj.transform;
+        end
+        assert(m,"AppCtrl/Init AddM "..file);
+        return m
+    end
+    --预处理初始化
+
+	--main object 初始化
+	AppCtrl.initMainObject(mainObj);
+
+	--模块初始化
+    AppCtrl.AppConfig = AddM("AppCtrl/AppConfig");--程序配置文件
+    AppCtrl.CoroutineMgr = AddM("AppCtrl/CoroutineMgr");--Lua协程
+    AppCtrl.TimerMgr = AddM("AppCtrl/TimerMgr");--定时器管理
+    AppCtrl.ResMgr = AddM("AppCtrl/ResMgr");--资源管理
+    AppCtrl.SceneMgr = AddM("AppCtrl/SceneMgr")--场景管理器 
+    AppCtrl.UIMgr = AddM("AppCtrl/UIMgr");--UI管理
+    AppCtrl.VersionMgr = AddM("AppCtrl/VersionMgr");--版本管理
+  
+	--最后锁定AppCtrl
+	setmetatable(AppCtrl, {__newindex = function()
+        assert(false, 'Do not set AppCtrl.')
+    end})
+end
+
+function AppCtrl.Destroy(  )
+    local function DestroyM(file)
+        local d = require(file) 
+        if d.Destroy then
+            d.Destroy();
+        end
+    end
+
+	--模块卸载
+    DestroyM('AppCtrl/UIMgr')
+    DestroyM('AppCtrl/TimerMgr')
+    DestroyM('AppCtrl/SceneMgr')
+    DestroyM('AppCtrl/ResMgr')
+    DestroyM("AppCtrl/VersionMgr");
+    DestroyM("AppCtrl/AppConfig");
+    DestroyM("AppCtrl/CoroutineMgr");
+    --
+    AppCtrl.DestroyMainObject();
+end
+
+function AppCtrl.initMainObject( mainObj )
+    mainObj.name = "Main(Do not destroy)";
+    
+    -- --新建GameObject挂载C# SystemManager，作用很杂，后面要归纳
+    -- go = GameObject("SystemManager")
+    -- go:AddComponent(SystemManager)
+    -- go.transform.parent = mainObj.transform;
+
+    --新建GameObject挂载C# ShowFPS 显示帧数
+    --go = GameObject("ShowFPS")
+    --go:AddComponent(typeof(CS.ShowFPS));
+    --go.transform.parent = mainObj.transform;
+    
+    -- --CameraSnapshotNode,挂载CameraSnapshot
+    -- go = GameObject("CameraSnapshotNode")
+    -- go.transform.parent = mainObj.transform;
+    --永久存在
+    AppCtrl.GlobalMainObject = mainObj;
+    GameObject.DontDestroyOnLoad(mainObj);
+end
+
+  --控制使用全局变量
+  --true为锁定，false为打开
+function AppCtrl.CtrlGlobal(trueoffase)
+    if trueoffase then
+        setmetatable(_G, {__newindex = function()
+            assert(false, 'Do not use global variables.')
+        end})
+    else
+        setmetatable(_G, {});
+    end
+end
+
+
+function AppCtrl.DestroyMainObject( ... )
+	 GameObject.DestroyObject(AppCtrl.GlobalMainObject);
+	 AppCtrl.GlobalMainObject = nil;
+end
+
+
+function AppCtrl.DebugPrintStack(msg)
+    CS.UnityEngine.Debug.LogWarning("----------------------------------------")
+    CS.UnityEngine.Debug.LogWarning("[Message]: " .. tostring(msg) .. "\n")
+    CS.UnityEngine.Debug.LogWarning(debug.traceback())
+    CS.UnityEngine.Debug.LogWarning("----------------------------------------")
+end
+

@@ -1,0 +1,206 @@
+local Json = require('Util.Json')
+
+local M = {}
+
+-- TODO: 显示联网动画
+local function AddLoading()
+    -- local UILoading = require "UI.Popup.UILoading";
+    -- UILoading.Show();
+end
+
+-- TODO: 移除联网动画
+local function RemoveLoading()
+    -- local UILoading = require "UI.Popup.UILoading";
+    -- UILoading.Hide();
+end
+
+-- TODO: 弹出网络错误提示框
+local function ShowErrorMessageBox()
+    -- local UIMessageBox = require "UI.Popup.UIMessageBox";
+    -- UIMessageBox.Show(54);
+end
+
+-- 编码，直接返回一个 Message
+local function Encode(proto, object)
+    -- object = Json.encode(object)
+    -- assert(type(object) == 'string')
+    -- return Game.Message(proto, Slua.ToBytes(object))
+end
+
+-- 解码， 返回一个 object
+local function Decode(message)
+    -- local str = Slua.ToString(message.message)
+    -- -- TODO: for debug
+    -- print(str)
+    -- return Json.decode(str)
+end
+
+----------------------------------------
+
+function M.Create()
+    local Conn = {}
+    local conn, notifyCb, reconnectCb, timer,connectCb
+
+    -- callback: 应用层回调 fn(proto, object, result)
+    local function Wrapper(callback)
+        return function(message, result)
+            local exception = result.exception
+            local proto = message and message.proto
+            if exception then
+                print('Net result:', exception:ToString(), proto)
+                Conn.Close()
+                callback(proto, nil, result)
+            else
+                callback(proto, Decode(message), result)
+            end
+        end
+    end
+
+    -- callback: 连接回调 fn(result)
+    local function Connect(callback, isFirst)
+        print("conn:Connect")
+        conn:Connect(function(result)
+            local exception = result.exception
+
+            -- 第一次连接不走重连逻辑
+            -- 当正常连接之后才调用重连回调
+            if not isFirst and reconnectCb and not exception then
+                if reconnectCb then
+                    reconnectCb(result, callback)
+                end
+            else
+                callback(result)
+            end
+        end)
+    end
+
+    -- host: 主机
+    -- port: 端口
+    -- notifyCallback: 通知回调 fn(proto, object, result)
+    -- connectCallback: 连接回调 fn(result)
+    -- reconnectCallback: 重连回调 fn(result, callback), callback: fn(result)
+    --              重连逻辑之后切记调用 callback，并传出对应的 result
+    --              以便后续逻辑能继续处理
+    function Conn.Init(host, port, notifyCallback, 
+        connectCallback, reconnectCallback)
+        print("Net init")
+        notifyCb = Wrapper(notifyCallback)
+        conn = Game.Net(host, port, notifyCb)
+        reconnectCb = reconnectCallback
+        connectCb = connectCallback
+        timer = AppCtrl.TimerMgr.Add(0.05, function(deltaTime, timer)
+            conn:Update()
+        end)
+        print("Net add loading")
+        AddLoading();
+        print("Net connect")
+        Connect(function(result)
+                    print("Net connnect callback result")
+                    RemoveLoading();
+                    if connectCb then
+                        connectCb(result);
+                    end
+                end, true);
+    end
+
+    local function SendRequest(proto, object, callback)
+        conn:SendRequest(Encode(proto, object), callback)
+    end
+
+    -- 发送请求
+    -- proto: 协议号
+    -- object: lua 表
+    -- callback: 发送回调 fn(proto, object, result)
+    function Conn.SendRequest(proto, object, callback, option)
+        option = option or ''
+        local backend = string.find(option, 'b') ~= nil
+        -- 默认不重试，带 'a' 选项后无限重试
+        -- TODO: 这里可以根据项目设定自动重试次数，默认是不重试
+        local retryTimes = string.find(option, 'a') ~= nil and -1 or 0
+
+        if conn.isConnecting then
+            if not backend then
+                ShowErrorMessageBox()
+            end
+
+            print('Net result:', 'Connecting', proto)
+            return callback(proto, nil, Game.NetResult('Connecting...'))
+        end
+
+        local message = Encode(proto, object)
+
+        -- callback: fn(result)
+        local function SendImpl(sendCbWrapper)
+            if conn.isWorking then
+                return conn:SendRequest(message, sendCbWrapper)
+            end
+
+            Connect(function(result)
+                if result and result.exception then
+                    sendCbWrapper(message, result)
+                else
+                    conn:SendRequest(message, sendCbWrapper)
+                end
+            end)
+        end
+
+        local function sendCallback(proto, object, result)
+            local isError = result.isError
+
+            if isError and retryTimes ~= 0 then
+                if retryTimes > 0 then
+                    retryTimes = retryTimes - 1
+                end
+
+                return SendImpl(Wrapper(sendCallback))
+            end
+
+            if not backend then
+                RemoveLoading()
+                -- 如果是客户端主动关闭连接的错误
+                -- 则不弹错误框
+                if result.isError and not result.isNetIsClosed then
+                    ShowErrorMessageBox()
+                end
+            end
+            callback(proto, object, result)
+        end
+
+        if not backend then
+            AddLoading()
+        end
+
+        SendImpl(Wrapper(sendCallback))
+    end
+
+    -- TODO: 发送通知不支持自动重试，发送前需要自行检查
+    -- conn 是否已经连接正常
+    function Conn.SendNotify(proto, object)
+        if conn.isWorking then
+            conn:SendNotify(Encode(proto, object))
+        end
+    end
+
+    function Conn.Close()
+        if conn then
+            conn:Close()
+        end
+    end
+
+    function Conn.Destroy()
+        connectCb = nil;
+        reconnectCb = nil;
+        notifyCb = nil;
+
+        Conn.Close()
+        if timer then
+            AppCtrl.TimerMgr.Delete(timer)
+        end
+        timer = nil
+        conn = nil
+    end
+
+    return Conn
+end
+
+return M

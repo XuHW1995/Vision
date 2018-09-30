@@ -1,0 +1,46 @@
+local Class = require('Behaviour/Class');
+local LuaBehaviour = require('Behaviour/LuaBehaviour');
+local Main = Class.Class(LuaBehaviour);
+
+function  Main:Start(  )
+    --print("================================main==============================")
+    --控制帧数
+    CS.UnityEngine.Application.targetFrameRate = -1;
+    --
+    --require ("Util/GlobalFunction")
+
+    --初始化游戏控制模块
+    require('AppCtrl/AppCtrl');--全局
+    AppCtrl.print = print;--控制print
+    AppCtrl.Init(self.gameObject);
+    --
+    --print("Platform:",CS.UnityEngine.Application.platform)
+    --print("EDITOR:",CS.UnityEngine.Application.isEditor)
+    
+    --Log控制
+    if not AppCtrl.AppConfig.log then
+        print = function ( ... )
+        end
+    else
+        print = AppCtrl.print
+    end
+    
+    --控制使用全局变量
+    AppCtrl.CtrlGlobal(true);
+
+   
+    --启动登录界面
+    --AppCtrl.SceneMgr.runScene("Login");
+    AppCtrl.UIMgr.Show("UIBackgroundFrame");
+    --AppCtrl.UIMgr.Show("UIBackgroundFrame");
+    AppCtrl.UIMgr.Show("UIHomePage");
+end
+
+function Main:OnDestroy()
+    -- body
+    --print("==================================quit===================================")
+    AppCtrl.Destroy();
+    --print("==================================quit done===================================")
+end
+
+return Main

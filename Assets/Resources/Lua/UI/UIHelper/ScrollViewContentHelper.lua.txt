@@ -1,0 +1,148 @@
+local Class = require("Behaviour/class");
+local LuaBehaviour = require("Behaviour/LuaBehaviour");
+local UILuaBehaviour = require("Behaviour/UILuaBehaviour");
+
+local ScrollViewContentHelper = Class.Class(UILuaBehaviour);
+
+local GameObject = CS.UnityEngine.GameObject;
+
+-- function ScrollViewContentHelper:Start() 
+--    self.isLoadAsyn = false;
+-- end
+
+--根据已有的子节点，复制或者删除子节点，使其数量为num个。(Content初始时必须有一个种子ChildNode)
+--参数：num为子节点个数，
+--     callback：callback(childNode,index) 你可以在此回调中设置childNode的各种属性
+function ScrollViewContentHelper:Load(num,callback)
+    local b_num_zero = false;
+    local childCnt = self.transform.childCount;
+    if childCnt >= num then
+        --考虑num为0的情况需要保留一个种子节点
+        if num == 0 then
+            b_num_zero = true;
+        end
+        --干掉多余的子节点
+        for i= 1,childCnt - num do
+            if i == 1 and b_num_zero then
+                self.transform:GetChild(0).gameObject:SetActive(false);--只隐藏不删除
+            else
+                GameObject.DestroyImmediate(self.transform:GetChild(0).gameObject);
+            end
+        end
+    else
+        local seedObj = self.transform:GetChild(0).gameObject;
+        if not seedObj.activeSelf then
+            seedObj:SetActive(true);
+        end      
+        local parentTransform = self.gameObject.transform;
+        for i=1,num - childCnt do
+            --print(num,childCnt)
+            local obj = GameObject.Instantiate(seedObj);
+            obj.transform:SetParent(parentTransform);
+            --print(seedObj.transform.localPosition,seedObj.transform.localScale)
+            obj.transform.localScale = seedObj.transform.localScale;
+            obj.transform.localPosition = seedObj.transform.localPosition;
+            obj.transform.localRotation = seedObj.transform.localRotation;
+            
+        end
+    end
+
+    if not b_num_zero then
+        --回调
+        for i= 0 ,self.transform.childCount - 1  do
+            --print(self.transform:GetChild(i).gameObject);
+            callback(self.transform:GetChild(i).gameObject,i + 1);
+        end
+    end
+end
+
+--遍历当前所有子节点，一个一个回调出去
+--参数：
+--     callback：callback(childNodeObj,childIndex) 你可以在此回调中设置childNode的各种属性
+function ScrollViewContentHelper:ForechChild(callback)
+    for i= 0 ,self.transform.childCount - 1  do
+        --print(self.transform:GetChild(i).gameObject);
+        callback(self.transform:GetChild(i).gameObject,i + 1);
+    end
+end
+
+-- -------------------------------------------------------------------------------------------
+-- --异步加载并回调
+-- function ScrollViewContentHelper:LoadAsyn(num,callback)
+--     local b_num_zero = false;
+--     local childCnt = self.transform.childCount;
+--     if childCnt >= num then
+--         --考虑num为0的情况需要保留一个种子节点
+--         if num == 0 then
+--             b_num_zero = true;
+--         end
+--         --干掉多余的子节点
+--         for i= 1,childCnt - num do
+--             if i == 1 and b_num_zero then
+--                 self.transform:GetChild(0).gameObject:SetActive(false);--只隐藏不删除
+--             else
+--                 GameObject.DestroyImmediate(self.transform:GetChild(0).gameObject);
+--             end
+--         end
+--     else
+--         local seedObj = self.transform:GetChild(0).gameObject;
+--         if not seedObj.activeSelf then
+--             seedObj:SetActive(true);
+--         end      
+--         local parentTransform = self.gameObject.transform;
+        
+--         for i=1,num - childCnt do
+--             local obj = GameObject.Instantiate(seedObj);
+--             obj.transform:SetParent(parentTransform);
+--             obj.transform.localScale = seedObj.transform.localScale;
+--             obj.transform.localPosition = seedObj.transform.localPosition;
+--             obj.transform.localRotation = seedObj.transform.localRotation;
+            
+--         end
+--     end
+
+--     if not b_num_zero then
+--         for i= 0 ,self.transform.childCount - 1  do
+--             self:Enqueue(self.transform:GetChild(i).gameObject,i + 1,callback)
+--         end
+--     end
+-- end
+
+-- function ScrollViewContentHelper:Enqueue(obj,index,callback)  
+--     if (self.AsynLoadList == nil) then
+--       self.AsynLoadList = {}; 
+--     end
+--     self.isLoadAsyn = true
+--     local t = {};
+--     t.obj = obj;
+--     t.index = index;
+--     t.cb = callback;
+--     table.insert(self.AsynLoadList,t);
+-- end
+
+-- function ScrollViewContentHelper:Update()
+--     print("@@@@@@@", self.AsynLoadList)
+--     if (self.AsynLoadList ~= nil) then
+--         if (#self.AsynLoadList ~= 0) then 
+--           self.AsynLoadList[1].cb(self.AsynLoadList[1].obj,self.AsynLoadList[1].index);
+--           table.remove(self.AsynLoadList,1);   
+--         end
+--     end
+-- end
+
+-- function ScrollViewContentHelper:OnDestroy()
+--     if (self.AsynLoadList ~= nil) then
+--         for k,v in ipairs(self.AsynLoadList) do
+--           GameObject.DestroyImmediate(v.obj);
+--         end
+--         self.AsynLoadList = {}; 
+--     end
+-- end
+
+-- function ScrollViewContentHelper:ClearCurrentEnqueue()
+--     if (self.AsynLoadList ~= nil) then
+--        self.AsynLoadList = {}; 
+--     end
+-- end
+
+return ScrollViewContentHelper

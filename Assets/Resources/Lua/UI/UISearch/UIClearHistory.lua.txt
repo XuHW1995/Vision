@@ -1,0 +1,18 @@
+local Class = require('Behaviour/Class');
+local UILuaBehaviour = require('Behaviour/UILuaBehaviour');
+local UIClearHistory = Class.Class(UILuaBehaviour);
+local PlayerPrefs = CS.UnityEngine.PlayerPrefs;
+local SearchHistoryData = require('Data/SearchHistoryData');
+
+function UIClearHistory:Yes( ... )
+	SearchHistoryData.DeleteHistoryData();
+	AppCtrl.UIMgr.RemoveTop();
+	local UISearchHistory = require("UI/UISearch/UISearchHistory");
+	UISearchHistory:Back();
+end
+
+function UIClearHistory:No( ... )
+	AppCtrl.UIMgr.RemoveTop()
+end
+
+return UIClearHistory;

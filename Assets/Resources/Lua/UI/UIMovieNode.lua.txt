@@ -1,0 +1,70 @@
+local Class = require('Behaviour/Class');
+local UILuaBehaviour = require('Behaviour/UILuaBehaviour');
+local UIMovieNode = Class.Class();
+
+local ReadAndSaveVideoInfo = CS.ReadAndSaveVideoInfo;
+
+function UIMovieNode:Constructor(moviedata, obj)
+    self.movidedata = moviedata; 
+    self.obj = obj;
+
+    self:Init();
+    self:RefreshMovieNode();
+    self:AddButtonEvent();
+end
+
+function UIMovieNode:Init()
+    self.nameText = self.obj.transform:Find("Image_BG/Text_Name").gameObject:GetComponent("Text");   
+    self.timeText = self.obj.transform:Find("Image_BG/Text_Time").gameObject:GetComponent("Text");
+    self.movieImageObj = self.obj.transform:Find("Image_BG/Image_MovieFrame").gameObject;
+    self.movieImage = self.movieImageObj:GetComponent("Image");
+    self.button = self.movieImageObj:GetComponent("Button");
+end
+
+function UIMovieNode:RefreshMovieNode()
+    self.nameText.text = self.movidedata.name;
+
+    UILuaBehaviour.SetMovieShowImage(self.movieImage, self.movidedata.url)
+
+    self:SetTimeText();
+end
+
+function UIMovieNode:SetTimeText()
+    local totaltime = ReadAndSaveVideoInfo.ReadVideoTime(self.movidedata.url);
+
+    --没有则获取
+    if (totaltime == 0) then
+        self:ShowTotalTime(0);
+    else
+        self:ShowTotalTime(totaltime);
+    end
+end
+
+--总时长显示
+function UIMovieNode:ShowTotalTime(time)
+    local mint = math.floor(time/60);
+    local second = time % 60;
+    local currenttime = self:FormatTime(mint)..":"..self:FormatTime(second);
+    self.timeText.text = currenttime;
+end
+
+--格式化时间输出
+function UIMovieNode:FormatTime(num)
+    if (num < 10) then
+        return  "0"..num;
+    else
+        return num;
+    end
+end
+
+function UIMovieNode:AddButtonEvent()
+    local function PlayMovie()
+        --AppCtrl.UIMgr.Show("UIPlayPage",self.movidedata);
+        CS.UnityEngine.Application.OpenURL(self.movidedata.url);
+    end 
+
+    self.button.onClick:RemoveAllListeners();     
+    self.button.onClick:AddListener(PlayMovie);
+end
+
+return UIMovieNode;

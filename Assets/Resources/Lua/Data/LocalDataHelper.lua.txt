@@ -1,0 +1,157 @@
+local LocalDataHelper = {}
+local data = require("Data/Local/data")
+local SearchMethod = require("Data/SearchMethod")
+local MenunameData= require("Data/Local/menuName");
+
+--获取菜单列表
+function LocalDataHelper.GetMenuItemList() 
+    local mianMenusName = {}
+    for k,v in ipairs(MenunameData.GetIds()) do
+        local menuName = MenunameData.GetValue(v, "Menuname")
+        if (LocalDataHelper.IsHave(mianMenusName,menuName) == false) then
+            table.insert(mianMenusName,menuName);
+        end
+    end
+    return mianMenusName;
+end
+-----------------------------------检索数据处理----------------------------------------------------
+--获取一级条目
+function LocalDataHelper.GetFirstColumn(menuName)
+    local firstColumNameTable = {};
+    for k,v in ipairs(MenunameData.GetIds()) do
+        local curMenuName = MenunameData.GetValue(v, "Menuname");
+        if (curMenuName == menuName) then
+            local firstColumnName = MenunameData.GetValue(v, "FirstColumnName");
+            if (LocalDataHelper.IsHave(firstColumNameTable,firstColumnName) == false) then
+                table.insert(firstColumNameTable,firstColumnName);
+            end
+        end
+    end
+    return firstColumNameTable;
+end
+
+--获取二级条目
+function LocalDataHelper.GetSecoundColum(menuName,firstcolumname)
+    local secoundColumNamesTable = {};
+    for k,v in ipairs(MenunameData.GetIds()) do
+        local curMenuName = MenunameData.GetValue(v, "Menuname");
+        if (curMenuName == menuName) then
+            local curfirstColumnName = MenunameData.GetValue(v, "FirstColumnName");
+            if(curfirstColumnName == firstcolumname)then
+                local secoundColumName = MenunameData.GetValue(v, "SecoundColumnName");
+                if (LocalDataHelper.IsHave(secoundColumNamesTable,secoundColumName) == false) then
+                    table.insert(secoundColumNamesTable,secoundColumName);
+                end
+            end     
+        end
+    end
+    return secoundColumNamesTable;
+end
+
+--查重
+function LocalDataHelper.IsHave(table,name)
+    local isHave = false;
+    for k,v in ipairs(table) do
+        if (v == name)then
+            isHave = true;
+        end
+    end
+    return isHave;
+end
+
+-- --获取一级条目
+-- function LocalDataHelper.GetFirstColumn(menuname)
+--   local firstcolumnames = {}
+--   for k,v in pairs(data.movies[menuname]) do
+--       firstcolumnames[#firstcolumnames + 1] = k;
+--   end
+--   return firstcolumnames;
+-- end
+
+-- --获取二级条目
+-- function LocalDataHelper.GetSecoundColum(menuname,firstcolumname)
+--   local secoundcolumnames = {}
+--   if data.movies[menuname][firstcolumname] then
+--     for k,v in pairs(data.movies[menuname][firstcolumname]) do
+--         secoundcolumnames[#secoundcolumnames + 1] = k;
+--     end
+--   end
+--   return secoundcolumnames;
+-- end
+-----------------------------------搜索数据处理------------------------------------------------------
+--按照每页15个数据对搜索数据进行划分
+--Dividedata={[1]={[1] = {moviedata},...},[2]={"第二页数据"}，.......}
+function LocalDataHelper.DivideSearchResultData(searchresultdata)
+    local DivideData = {};
+    local PageCount = math.ceil(#searchresultdata/15)--向上取整
+    --local lastpagedatacount = #searchresultdata%15   --取余
+    for i=1,PageCount do  
+        DivideData[i]={};       
+        for j=1,15 do
+            local index = (i-1)*15+j
+            if(searchresultdata[index] ==nil) then
+        	   break;
+            else
+                table.insert(DivideData[i],searchresultdata[index])
+            end
+        end
+    end
+    return DivideData,PageCount;
+end
+------------------------------------推荐页下面的数据--------------------------------------------------
+LocalDataHelper.RecommendData={} --推荐页数据缓存
+--需要10条数据
+function  LocalDataHelper.GetRecommendData()
+    if #LocalDataHelper.RecommendData ~= 0 then
+        return LocalDataHelper.RecommendData;
+    else
+        local recommenddata = {}
+        for k,v in pairs(data.movies) do
+            if k~="推荐" then
+              local onetable = {}
+              onetable["titlename"] = k;
+              local smdtable = SearchMethod.GetRecommendDataBymenuname(10,k)    
+              onetable["showmoviedata"] = smdtable
+              table.insert(recommenddata,onetable)
+            end     
+        end
+        LocalDataHelper.RecommendData = recommenddata
+        return recommenddata
+    end 
+end
+-------------------------------------每页的展示数据-------------------------------------------------
+LocalDataHelper.ShowMovieData = {} --展示数据缓存
+--需要5条数据
+function LocalDataHelper.GetShowMovieDataByMenuname(menuname)
+    if LocalDataHelper.ShowMovieData[menuname] ~=nil then
+        return LocalDataHelper.ShowMovieData[menuname]
+    else
+        local smdtable = nil;
+        smdtable = SearchMethod.GetRecommendDataBymenuname(5,menuname)
+        LocalDataHelper.ShowMovieData[menuname] = smdtable
+        assert(#smdtable~=0,"获取展示数据错误！ 错误栏目："..menuname)   
+        return smdtable;
+    end
+end
+-----------------------------------每页的排行数据（暂时随机）--------------------------------------------
+LocalDataHelper.RankData = {}  --排行数据缓存
+function LocalDataHelper.GetRankDataByMenuname(menuname)
+    if LocalDataHelper.RankData[menuname]~=nil then
+        return LocalDataHelper.RankData[menuname]
+    else
+        local smdtable = nil;
+        smdtable = SearchMethod.GetRecommendDataBymenuname(10,menuname)
+        LocalDataHelper.RankData[menuname] = smdtable
+        assert(#smdtable~=0,"获取排行数据错误！ 错误栏目："..menuname)
+        return smdtable;
+    end
+end
+--------------------------------------------------------------------------------------------------------
+--获取相关视频数据
+--根据moviename获取相关视频数据
+function  LocalDataHelper.GetRelatedData(url)
+    local Relateddata = SearchMethod.GetRelatedDataByUrl(url)
+   return Relateddata;
+end
+
+return LocalDataHelper;

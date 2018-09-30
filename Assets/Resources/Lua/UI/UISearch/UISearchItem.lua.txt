@@ -1,0 +1,12 @@
+local Class = require('Behaviour/Class');
+local UILuaBehaviour = require('Behaviour/UILuaBehaviour');
+local UISearchItem = Class.Class(UILuaBehaviour);
+local UISearchHistory = require("UI/UISearch/UISearchHistory");
+
+function UISearchItem:OnButtonChick()
+    local UIBackgroundFrameLb =AppCtrl.UIMgr.FindUIByName("UIBackgroundFrame")
+    UIBackgroundFrameLb:ChangeInputText(self.Gos.StrData.transform:GetComponent("Text").text)
+	UISearchHistory:Back();
+end
+
+return UISearchItem;

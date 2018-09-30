@@ -1,0 +1,52 @@
+local Class = require('Behaviour/Class')
+local LuaBehaviour = require('Behaviour/LuaBehaviour')
+
+local Sprite = CS.UnityEngine.Sprite;
+local Texture2D = CS.UnityEngine.Texture2D;
+local Rect = CS.UnityEngine.Rect;
+local Vector3 = CS.UnityEngine.Vector3;
+local Vector2 = CS.UnityEngine.Vector2;
+local ReadAndSaveVideoInfo = CS.ReadAndSaveVideoInfo;
+
+local UILuaBehaviour = Class.Class(LuaBehaviour)
+
+-- 获得或者失去焦点时会调用  tof:true 获得   false失去
+function UILuaBehaviour:focus(tof)
+end
+
+--设置图片
+function UILuaBehaviour.SetImage(gameObject, path)
+    local image = gameObject:GetComponent('Image');
+    local sprite = AppCtrl.ResMgr.Load(path);
+    if sprite==nil then
+        assert(sprite,"Set Image Error:",path);
+    else
+      	image.sprite = Sprite.Instantiate(sprite);
+    end
+end
+
+--设置视频缩略图
+function UILuaBehaviour.SetMovieShowImage(gameObject, url)
+    local movieShowImageSprite = ReadAndSaveVideoInfo.GetShowImageSpriteByUrl(url);
+    gameObject:GetComponent('Image').sprite = movieShowImageSprite;
+end
+
+--设置文字
+function UILuaBehaviour:SetText(gameObject, str)
+    assert(gameObject,"The arg:gameObject must be non null")
+    assert(str,"The arg:str must be non null")
+    local textcom = gameObject:GetComponent(typeof(CS.UnityEngine.UI.Text));
+    textcom.text = str;
+end
+
+--获取文字
+function UILuaBehaviour:GetText(gameObject)
+    assert(gameObject,"The arg:gameObject must be non null")
+    local textcom = gameObject:GetComponent(typeof(CS.UnityEngine.UI.Text));
+    if textcom then
+        return textcom.text;
+    end
+    return nil;
+end
+
+return UILuaBehaviour;

@@ -1,0 +1,90 @@
+local Class = require('Behaviour/Class');
+local UILuaBehaviour = require('Behaviour/UILuaBehaviour');
+local UIBackgroundFrame = Class.Class(UILuaBehaviour);
+local SearchHistoryData = require('Data/SearchHistoryData');
+local SearchMethod = require('Data/SearchMethod')
+
+function  UIBackgroundFrame:Start(  )
+    self:SetButtonStyle(1,0);
+    self.searchText = self.Gos.searchInputText.transform:GetComponent("Text")
+end
+
+--回车搜索
+function UIBackgroundFrame:Update( ... )
+    if CS.UnityEngine.Input.GetKey(CS.UnityEngine.KeyCode.Return) then
+       self:OnSearchButton()
+    end            
+end
+
+function UIBackgroundFrame:OnHomePage()   
+    --当前页是uihomepage的时候，点击homepage不执行
+    if AppCtrl.UIMgr.Find("UIHomePage") == 1 then 
+        return;
+    else
+        local UIPlayPage = AppCtrl.UIMgr.FindUIByName("UIPlayPage") 
+        if (UIPlayPage ~= nil) then
+            UIPlayPage:Back()        
+        else
+            AppCtrl.UIMgr.Back("UIBackgroundFrame");
+            AppCtrl.UIMgr.Show("UIHomePage");  
+        end  
+        self:SetButtonStyle(1,0);
+    end   
+end
+
+function UIBackgroundFrame:OnPlayPage()
+    local movieinfo = SearchHistoryData.GetHistoryPlayInfo()
+    if movieinfo == nil then
+        AppCtrl.UIMgr.Show("UIToolTip");
+    else
+        AppCtrl.UIMgr.Show("UIPlayPage",movieinfo);            
+    end
+    self:SetButtonStyle(0,1);
+end
+
+function UIBackgroundFrame:OnSearchHistory()
+    AppCtrl.UIMgr.Show("UISearchHistory");
+end
+
+function UIBackgroundFrame:OnSearchButton()
+    SearchHistoryData.SetHistoryData(self.searchText.text)  
+    AppCtrl.UIMgr.Back("UIBackgroundFrame");
+    --显示搜索结果界面  
+    local searchresultdata = SearchMethod.SearchByStr(self.searchText.text)
+    AppCtrl.UIMgr.Show("UISearchResult",searchresultdata)
+    self:SetButtonStyle(1,0);
+end
+
+function UIBackgroundFrame:OnValueChanged()
+    local co = coroutine.create( function()
+        local s = os.time()
+        AppCtrl.CoroutineMgr.get_yield_return()(CS.UnityEngine.WaitForSeconds(0.1))
+        local t = self:GetText(self.Gos.searchInputText)
+    end )
+    assert(coroutine.resume(co))
+end
+
+function UIBackgroundFrame:SetButtonStyle(homePageButtonStyle,playPageButtonStyle)
+    if homePageButtonStyle == 0 then
+        local image = self.Gos.homePageButton:GetComponent(typeof(CS.UnityEngine.UI.Image));
+        image.color = CS.UnityEngine.Color(0,0,0,0);
+    elseif homePageButtonStyle == 1 then
+        local image = self.Gos.homePageButton:GetComponent(typeof(CS.UnityEngine.UI.Image));
+        image.color = CS.UnityEngine.Color(1,1,1,1);
+    end
+
+    if playPageButtonStyle == 0 then
+        local image = self.Gos.playPageButton:GetComponent(typeof(CS.UnityEngine.UI.Image));
+        image.color = CS.UnityEngine.Color(0,0,0,0);
+    elseif playPageButtonStyle == 1 then
+        local image = self.Gos.playPageButton:GetComponent(typeof(CS.UnityEngine.UI.Image));
+        image.color = CS.UnityEngine.Color(1,1,1,1);
+    end
+
+end
+
+function UIBackgroundFrame:ChangeInputText(str)
+   self.Gos.InputField_Search:GetComponent(typeof(CS.UnityEngine.UI.InputField)).text = str;
+end
+
+return UIBackgroundFrame

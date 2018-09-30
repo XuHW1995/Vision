@@ -1,0 +1,127 @@
+local Class = require('Behaviour/Class');
+local UILuaBehaviour = require('Behaviour/UILuaBehaviour');
+local UIHomePage_top = Class.Class(UILuaBehaviour);
+local LocalDataHelper = require("Data/LocalDataHelper")
+
+local NotifyMgr = require("AppCtrl/NotifyMgr");
+
+function UIHomePage_top:Start()
+    self:AddListener();
+    self:BeginLoopShow();
+end
+
+function UIHomePage_top:AddListener()
+    NotifyMgr.RegisterListening(self, NotifyMgr.EventList.PlayMovie, function ()
+        self:EndLoopShow();
+    end)
+
+    NotifyMgr.RegisterListening(self, NotifyMgr.EventList.EndMovie, function ()
+        self:BeginLoopShow();
+    end)
+end
+
+function UIHomePage_top:RemoveLisetener()
+    NotifyMgr.RmoveListen(self, NotifyMgr.EventList.PlayMovie);
+    NotifyMgr.RmoveListen(self, NotifyMgr.EventList.EndMovie);
+end
+
+function UIHomePage_top:BeginLoopShow()
+    self.loopid =  AppCtrl.TimerMgr.Add(10, function ()
+        local index = self:GetCurrentIndex()
+        index = index +1
+        if index == 6 then
+            index =1
+        end
+        self:ChangeToggle(index)   
+    end)
+end
+
+function UIHomePage_top:EndLoopShow()
+    if (nil ~= self.loopid) then
+        AppCtrl.TimerMgr.Delete(self.loopid)
+        self.loopid = nil;
+    end
+end
+
+function UIHomePage_top:OnDestroy()
+    self:RemoveLisetener();
+    self:EndLoopShow();
+end
+
+--根据menuname刷新top
+function UIHomePage_top:Show(menuname)
+    self:ShowSCVImage(menuname);
+    self:ShowSCVRank(menuname);
+end
+
+--刷新滑动展示栏
+function UIHomePage_top:ShowSCVImage(menuname)	
+	local showmovie = LocalDataHelper.GetShowMovieDataByMenuname(menuname)	
+	local SVCHelper = UILuaBehaviour.GetLuaBehaviour(self.Gos.ShowContent);
+	SVCHelper:ForechChild(function(childNodeObj,index)     
+        local showMovieImage = childNodeObj.transform:Find("ShowMovie").gameObject;
+        local movieNameText = childNodeObj.transform:Find("Text_Name").gameObject:GetComponent("Text");
+        local button = showMovieImage:GetComponent("Button");
+        local thisMovieData = showmovie[index];
+
+        movieNameText.text = thisMovieData.name;
+        UILuaBehaviour.SetMovieShowImage(showMovieImage, thisMovieData.url);
+        button.onClick:RemoveAllListeners();     
+        button.onClick:AddListener(function ()
+            AppCtrl.UIMgr.Show("UIPlayPage", thisMovieData);  
+        end);
+    end)
+    
+    self:InitToggleGroup()
+end
+
+--刷新排行榜
+function UIHomePage_top:ShowSCVRank(menuname)
+    local rankdata = LocalDataHelper.GetRankDataByMenuname(menuname)  
+    local SVCHelper = UILuaBehaviour.GetLuaBehaviour(self.Gos.RankContent);
+    SVCHelper:ForechChild(function(childNodeObj,index)
+        local nameText = childNodeObj.transform:Find("Text_Name").gameObject:GetComponent("Text");
+        local button = childNodeObj:GetComponent("Button");
+        local thisMovieData = rankdata[index];
+
+        nameText.text = thisMovieData.name;
+        button.onClick:RemoveAllListeners();     
+        button.onClick:AddListener(function ()
+            AppCtrl.UIMgr.Show("UIPlayPage", thisMovieData);  
+        end);
+    end)
+end
+
+--换页toggle第一个选中
+function UIHomePage_top:InitToggleGroup()
+	local SVCHelper = UILuaBehaviour.GetLuaBehaviour(self.Gos.ToggleGroup);
+	SVCHelper:ForechChild(function(childNodeObj,index)
+        if index == 1 then
+            childNodeObj.transform:GetComponent("Toggle").isOn = true;          
+    	end       
+	end)
+end
+
+--改变当前选中的toggle
+function UIHomePage_top:ChangeToggle(num)
+    local SVCHelper = UILuaBehaviour.GetLuaBehaviour(self.Gos.ToggleGroup);
+    SVCHelper:ForechChild(function(childNodeObj,index)
+        if index == num then
+            childNodeObj.transform:GetComponent("Toggle").isOn = true;          
+        end       
+    end)
+end
+
+--获取当前选中的toggleindex
+function UIHomePage_top:GetCurrentIndex()
+    local currentindex;
+    local SVCHelper = UILuaBehaviour.GetLuaBehaviour(self.Gos.ToggleGroup);
+    SVCHelper:ForechChild(function(childNodeObj,index)
+        if childNodeObj.transform:GetComponent("Toggle").isOn == true then
+            currentindex=index
+        end          
+    end)
+    return currentindex
+end
+
+return UIHomePage_top;

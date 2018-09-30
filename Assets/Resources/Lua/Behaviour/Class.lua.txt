@@ -1,0 +1,28 @@
+local M = {}
+
+function M.Class(super)
+    local mt = {__call = function(_c, ...)
+        local function _create(_c, _o, ...)
+            if _c.__super then _create(_c.__super, _o, ...) end
+            if rawget( _c,"Constructor") then _c.Constructor(_o, ...) end
+            return _o
+        end
+
+        -- local _o = _create(_c, {}, ...)
+        -- return setmetatable(_o, _c)
+        -- 可以在构造函数中调用虚方法，慎用！
+        local _o = setmetatable({}, _c)
+        return _create(_c, _o, ...)
+    end}
+
+    mt.__index = super or mt
+    local c = {__super = super}
+    c.__index = c
+    return setmetatable(c, mt)
+end
+
+function M.Type(o)
+    return getmetatable(o)
+end
+
+return M

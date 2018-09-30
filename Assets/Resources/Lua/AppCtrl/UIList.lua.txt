@@ -1,0 +1,84 @@
+local UIList = {};
+
+UIList.eUIType = {
+	Loading			= {order = 110,	mask = true,	shield = true,	stack = false,	lastUIActive = true},		--菊花
+	LightTips		= {order = 100,	mask = false,	shield = false,	stack = false,	lastUIActive = true},		--轻量提示
+	MessageBox		= {order = -1,	mask = true,	shield = true,	stack = true,	lastUIActive = true},		--对话框
+	PopLayer		= {order = -1,	mask = true,	shield = true,	stack = true,	lastUIActive = true},		--非全屏
+	FullLayer		= {order = -1,	mask = true,	shield = true,	stack = true,	lastUIActive = false},		--全屏的
+	WindowLayer		= {order = -1,	mask = false,	shield = false,	stack = true,	lastUIActive = false},		--全屏的,有窗口透下，如:主场景UI
+	D3D				= {order = 20,	mask = true,	shield = true,	stack = false,	lastUIActive = true},		--3d ui
+	StickLayer		= {order = -1,	mask = false,	shield = false,	stack = true,	lastUIActive = true},		--非全屏，有窗口透下，不影响其它UI的显示
+	HomeDock		= {order = 9999,mask = false,	shield = false,	stack = false,	lastUIActive = true},
+}
+
+--[[
+UIList.list下的每一条都是主UI，嵌套在主UI内部的SubUI为子UI。
+主UI必须被UImgr堆栈缓存管理,也就是说eUIType必须有值。
+子UI可以不被UImgr堆栈缓存管理，也可以被管理，取决于eUIType是否非空，为空则不管理.
+被管理的UI有可以使用UIMgr.removeUI等接口来操作UI，而没被管理的只能随主UI一起移除或者提前调用Destroy。
+例如互斥的子ui（分页签UI界面）适合不管理，而弹出框式的适合管理。总体来说就是根据子UI的显示/释放是否具有堆栈操作特征来选择管理与否。
+]]
+UIList.list = {
+	--MessageBox
+	--UIMessageBox 		= "Prefabs/UI/Popup/UIMessageBox.prefab",
+	--LitePop 			= "Prefabs/UI/Popup/UILitePop.prefab",
+	--UITitleBox 			= "Prefabs/UI/Popup/UITitleBox.prefab",
+	--
+	--UINewLogin 			= "Prefabs/UI/Login/UINewLogin.prefab",
+	UIBackgroundFrame = {path = "Prefabs/UI/UIBackgroundFrame.prefab",eUIType = UIList.eUIType.FullLayer},
+	UIHomePage = {path = "Prefabs/UI/UIHomePage.prefab",eUIType = UIList.eUIType.StickLayer},
+    UISearchHistory = {path = "Prefabs/UI/UISearchHistory.prefab",eUIType = UIList.eUIType.StickLayer},
+    UIClearHistory = {path = "Prefabs/UI/UIClearHistory.prefab",eUIType = UIList.eUIType.StickLayer},
+    UISearchResult = {path = "Prefabs/UI/UISearchResult.prefab",eUIType = UIList.eUIType.StickLayer},
+    UIPlayPage = {path = "Prefabs/UI/UIPlayPage.prefab",eUIType = UIList.eUIType.StickLayer},
+    UIToolTip = {path = "Prefabs/UI/UIToolTip.prefab",eUIType = UIList.eUIType.StickLayer},
+}
+
+--用excel表的内容来检查是否匹配
+-- local st_uilist = require "LData/st_uilist";
+-- local listLen,keys = st_uilist:GetLens()
+-- for i=1,listLen do
+-- 	local k_name = st_uilist:GetValueByKey(keys[i],"Name");
+-- 	assert(UIList.list[k_name],"[UIList]: st_uilist not match."..k_name);
+-- end
+
+function UIList.get(s)
+	if type(s) == "string" then
+		if string.find(s,".prefab") then
+			TRACKBACK__Warning("Please Use New UI mode(Insert UI into AppCtrl.UIList)!")
+			for k,v in pairs(UIList.list) do
+				if v.pathName == s then
+					return v,"Not UIList";
+				end
+			end
+			return {pathName = s,eUIType = UIList.UIType.LayerFull},"Not UIList" --temp
+		else
+			return UIList.list[s], s;
+		end
+	else
+		assert(false,"No!");
+	end
+end
+
+--[[
+	根据子UI名查找子UI信息
+]]
+function UIList.getForSub(SubUIName)
+	for k,v in pairs(UIList.list) do
+		--print("UIList.getForSub Main UI",k,v)
+		for k1,v1 in pairs(v.SubUI or {}) do
+			--print("UIList.getForSub Sub UI",k1,SubUIName)
+			if k1 == SubUIName then
+				return v1,SubUIName;
+			end
+		end
+	end
+	assert(false,"Not found sub UI:"..SubUIName);
+end
+
+function UIList.getUIType()
+	return UIList.UIType;
+end
+
+return UIList
